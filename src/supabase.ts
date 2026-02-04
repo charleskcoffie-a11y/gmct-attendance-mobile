@@ -82,8 +82,12 @@ export async function saveMember(member: Member) {
       .from('members')
       .update({
         name: member.name,
-        class_number: member.assignedClass?.toString(),
-        phone: member.phoneNumber
+        class_number: member.class_number || member.assignedClass?.toString(),
+        member_number: member.member_number,
+        address: member.address,
+        city: member.city,
+        province: member.province,
+        phone: member.phone || member.phoneNumber
       })
       .eq('id', memberId);
     
@@ -97,8 +101,12 @@ export async function saveMember(member: Member) {
       .from('members')
       .insert({
         name: member.name,
-        class_number: member.assignedClass?.toString(),
-        phone: member.phoneNumber
+        class_number: member.class_number || member.assignedClass?.toString(),
+        member_number: member.member_number,
+        address: member.address,
+        city: member.city,
+        province: member.province,
+        phone: member.phone || member.phoneNumber
       });
     
     if (error) {

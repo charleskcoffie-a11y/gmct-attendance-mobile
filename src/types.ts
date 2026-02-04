@@ -1,12 +1,16 @@
 // Type definitions for GMCT Attendance Mobile App
 
 export interface Member {
-  id: number;
+  id: string;
   name: string;
-  assignedClass: number;
-  active?: boolean;
-  phoneNumber?: string;
-  email?: string;
+  assignedClass?: number;  // For internal use, maps to class_number
+  class_number?: string;
+  member_number?: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  phone?: string;
+  phoneNumber?: string;    // For internal use, maps to phone
   created_at?: string;
 }
 

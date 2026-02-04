@@ -16,7 +16,6 @@ interface EditingMember {
   id?: string;
   name: string;
   phoneNumber?: string;
-  email?: string;
 }
 
 export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
@@ -71,7 +70,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
   };
 
-  const updateMemberStatus = (memberId: number, status: string) => {
+  const updateMemberStatus = (memberId: string, status: string) => {
     setMembers(
       members.map((m) =>
         m.id === memberId
@@ -91,14 +90,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     setEditingMember({
       id: member.id?.toString(),
       name: member.name,
-      phoneNumber: member.phoneNumber,
-      email: member.email,
+      phoneNumber: member.phone || member.phoneNumber
     });
     setMemberFormData({
       id: member.id?.toString(),
       name: member.name,
-      phoneNumber: member.phoneNumber,
-      email: member.email,
+      phoneNumber: member.phone || member.phoneNumber
     });
     setShowMemberForm(true);
   };
@@ -112,12 +109,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     setLoading(true);
     try {
       const newMember: Member = {
-        id: editingMember?.id ? parseInt(editingMember.id) : 0,
+        id: editingMember?.id || "",
         name: memberFormData.name,
-        assignedClass: classNumber,
+        class_number: classNumber.toString(),
         phoneNumber: memberFormData.phoneNumber,
-        email: memberFormData.email,
-        active: true,
       };
 
       await saveMember(newMember);
@@ -138,12 +133,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
   };
 
-  const handleDeleteMember = async (id: number) => {
+  const handleDeleteMember = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this member?")) return;
 
     setLoading(true);
     try {
-      await deleteMember(id.toString());
+      await deleteMember(id);
       setSuccess("Member deleted successfully");
       await loadMembers();
       setTimeout(() => setSuccess(null), 3000);
@@ -355,23 +350,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Phone number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={memberFormData.email || ""}
-                      onChange={(e) =>
-                        setMemberFormData({
-                          ...memberFormData,
-                          email: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Email address"
                     />
                   </div>
                   <div className="flex gap-3 pt-4">
