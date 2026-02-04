@@ -11,6 +11,7 @@ export interface Member {
   province?: string;
   phone?: string;
   phoneNumber?: string;    // For internal use, maps to phone
+  date_of_birth?: string;  // ISO date format (YYYY-MM-DD)
   created_at?: string;
 }
 

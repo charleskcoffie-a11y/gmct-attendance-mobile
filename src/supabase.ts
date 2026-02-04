@@ -87,7 +87,8 @@ export async function saveMember(member: Member) {
         address: member.address,
         city: member.city,
         province: member.province,
-        phone: member.phone || member.phoneNumber
+        phone: member.phone || member.phoneNumber,
+        date_of_birth: member.date_of_birth
       })
       .eq('id', memberId);
     
@@ -106,7 +107,8 @@ export async function saveMember(member: Member) {
         address: member.address,
         city: member.city,
         province: member.province,
-        phone: member.phone || member.phoneNumber
+        phone: member.phone || member.phoneNumber,
+        date_of_birth: member.date_of_birth
       });
     
     if (error) {
