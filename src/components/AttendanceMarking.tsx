@@ -33,6 +33,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [editingMember, setEditingMember] = useState<EditingMember | null>(null);
+  const [memberSearch, setMemberSearch] = useState("");
   const [memberFormData, setMemberFormData] = useState<EditingMember>({
     name: "",
   });
@@ -212,6 +213,27 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     (m) => m.attendanceStatus === "travel"
   ).length;
 
+  const normalizedSearch = memberSearch.trim().toLowerCase();
+  const sortedMembers = [...members].sort((a, b) => {
+    const classA = a.class_number || (a.assignedClass ? String(a.assignedClass) : "");
+    const classB = b.class_number || (b.assignedClass ? String(b.assignedClass) : "");
+    if (classA !== classB) return classA.localeCompare(classB, undefined, { numeric: true });
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  const filteredMembers = normalizedSearch
+    ? sortedMembers.filter((m) => {
+        const name = m.name?.toLowerCase() || "";
+        const phone = (m.phone || m.phoneNumber || "").toLowerCase();
+        const memberNumber = (m.member_number || "").toLowerCase();
+        return (
+          name.includes(normalizedSearch) ||
+          phone.includes(normalizedSearch) ||
+          memberNumber.includes(normalizedSearch)
+        );
+      })
+    : sortedMembers;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -312,6 +334,17 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           </div>
         </div>
 
+        {/* Search */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            placeholder="Search by name, phone, or member number"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Member Editor Modal */}
         {showMemberForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30 p-4">
@@ -380,9 +413,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         {/* Members List */}
         {loading && members.length === 0 ? (
           <div className="text-center py-8 text-gray-600">Loading members...</div>
-        ) : members.length === 0 ? (
+        ) : filteredMembers.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">No members in this class yet</p>
+            <p className="text-gray-600 mb-4">
+              {members.length === 0 ? "No members in this class yet" : "No members match your search"}
+            </p>
             <button
               onClick={handleAddMember}
               className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
@@ -393,7 +428,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           </div>
         ) : (
           <div className="space-y-3 mb-6">
-            {members.map((member) => (
+            {filteredMembers.map((member) => (
               <div
                 key={member.id}
                 className="bg-white rounded-lg p-4 shadow-sm border border-gray-200"
