@@ -3,14 +3,14 @@ import Dexie, { Table } from 'dexie';
 import { Member, SyncQueueItem } from './types';
 
 export class AttendanceDatabase extends Dexie {
-  members!: Table<Member, number>;
+  members!: Table<Member, string>;
   syncQueue!: Table<SyncQueueItem, number>;
   
   constructor() {
     super('gmct_attendance');
     
     this.version(1).stores({
-      members: 'id, name, assignedClass',
+      members: 'id, name, class_number, assignedClass',
       syncQueue: '++id, synced, timestamp'
     });
   }
@@ -31,6 +31,16 @@ export async function cacheMembers(members: Member[]) {
 // Get cached members
 export async function getCachedMembers(classNumber: number): Promise<Member[]> {
   try {
+    const classNumberText = classNumber.toString();
+    const byClassNumber = await db.members
+      .where('class_number')
+      .equals(classNumberText)
+      .toArray();
+
+    if (byClassNumber.length > 0) {
+      return byClassNumber;
+    }
+
     return await db.members
       .where('assignedClass')
       .equals(classNumber)

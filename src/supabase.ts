@@ -59,18 +59,44 @@ export async function validateClassAccessCode(accessCode: string): Promise<numbe
 
 // Get members for a specific class
 export async function getClassMembers(classNumber: number) {
+  const classNumberText = classNumber.toString();
   const { data, error } = await supabase
     .from('members')
     .select('*')
-    .eq('class_number', classNumber.toString())
+    .eq('class_number', classNumberText)
     .order('name', { ascending: true });
-  
+
   if (error) {
     console.error('Error fetching class members:', error);
     return [];
   }
-  
-  return data || [];
+
+  if (data && data.length > 0) {
+    return data.map((m: any) => ({
+      ...m,
+      id: String(m.id),
+      assignedClass: m.class_number ? parseInt(m.class_number, 10) : undefined,
+      phoneNumber: m.phone ?? m.phoneNumber
+    }));
+  }
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('members')
+    .select('*')
+    .eq('assigned_class', classNumber)
+    .order('name', { ascending: true });
+
+  if (fallbackError) {
+    console.error('Error fetching class members (fallback):', fallbackError);
+    return [];
+  }
+
+  return (fallbackData || []).map((m: any) => ({
+    ...m,
+    id: String(m.id),
+    assignedClass: m.assigned_class ?? undefined,
+    phoneNumber: m.phone ?? m.phoneNumber
+  }));
 }
 
 // Save/update member
