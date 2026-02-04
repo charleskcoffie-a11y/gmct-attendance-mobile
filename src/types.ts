@@ -12,6 +12,8 @@ export interface Member {
   phone?: string;
   phoneNumber?: string;    // For internal use, maps to phone
   date_of_birth?: string;  // ISO date format (YYYY-MM-DD)
+  dob_month?: number;      // Month (1-12)
+  dob_day?: number;        // Day (1-31)
   created_at?: string;
 }
 
