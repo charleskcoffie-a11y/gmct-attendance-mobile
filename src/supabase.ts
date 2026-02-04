@@ -62,8 +62,7 @@ export async function getClassMembers(classNumber: number) {
   const { data, error } = await supabase
     .from('members')
     .select('*')
-    .eq('assigned_class', classNumber)
-    .neq('active', false)
+    .eq('class_number', classNumber.toString())
     .order('name', { ascending: true });
   
   if (error) {
@@ -83,10 +82,8 @@ export async function saveMember(member: Member) {
       .from('members')
       .update({
         name: member.name,
-        assigned_class: member.assignedClass,
-        phone_number: member.phoneNumber,
-        email: member.email,
-        active: member.active
+        class_number: member.assignedClass?.toString(),
+        phone: member.phoneNumber
       })
       .eq('id', memberId);
     
@@ -100,10 +97,8 @@ export async function saveMember(member: Member) {
       .from('members')
       .insert({
         name: member.name,
-        assigned_class: member.assignedClass,
-        phone_number: member.phoneNumber,
-        email: member.email,
-        active: member.active ?? true
+        class_number: member.assignedClass?.toString(),
+        phone: member.phoneNumber
       });
     
     if (error) {
@@ -117,7 +112,7 @@ export async function saveMember(member: Member) {
 export async function deleteMember(memberId: string) {
   const { error } = await supabase
     .from('members')
-    .update({ active: false })
+    .delete()
     .eq('id', memberId);
   
   if (error) {
@@ -188,9 +183,9 @@ export async function getClassAttendanceHistory(classNumber: number, limit = 10)
     .from('attendance')
     .select(`
       *,
-      members!inner(name, assigned_class)
+      members!inner(name, class_number)
     `)
-    .eq('members.assigned_class', classNumber)
+    .eq('members.class_number', classNumber.toString())
     .order('date', { ascending: false })
     .limit(limit);
   

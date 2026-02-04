@@ -81,14 +81,14 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
         console.error("Error loading member count:", err);
       }
 
-      // Get class count (distinct assignedClass values)
+      // Get class count (distinct class_number values)
       try {
         const { data, error } = await supabase
           .from("members")
-          .select("assigned_class");
+          .select("class_number");
 
         if (!error && data) {
-          const classSet = new Set(data.map((m: any) => m.assigned_class));
+          const classSet = new Set(data.map((m: any) => m.class_number).filter(Boolean));
           classCount = classSet.size;
         }
       } catch (err) {
