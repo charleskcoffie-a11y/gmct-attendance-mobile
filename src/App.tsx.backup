@@ -1,0 +1,68 @@
+import { useState, useEffect } from 'react';
+import Login from './components/Login';
+import AttendanceMarking from './components/AttendanceMarking';
+import AdminSettings from './components/AdminSettings';
+import SyncManager from './components/SyncManager';
+import { ClassSession } from './types';
+
+function App() {
+  const [session, setSession] = useState<ClassSession | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Load session from localStorage on mount
+  useEffect(() => {
+    const savedSession = localStorage.getItem('classSession');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        setSession(parsed);
+        setIsAdmin(parsed.classNumber === -1);
+      } catch (error) {
+        console.error('Error loading session:', error);
+        localStorage.removeItem('classSession');
+      }
+    }
+  }, []);
+
+  const handleLogin = (classNumber: number, accessCode: string) => {
+    const newSession: ClassSession = {
+      classNumber,
+      accessCode,
+      loginTime: new Date().toISOString()
+    };
+    
+    setSession(newSession);
+    setIsAdmin(classNumber === -1);
+    localStorage.setItem('classSession', JSON.stringify(newSession));
+  };
+
+  const handleLogout = () => {
+    setSession(null);
+    setIsAdmin(false);
+    localStorage.removeItem('classSession');
+  };
+
+  return (
+    <>
+      {session ? (
+        <>
+          {isAdmin ? (
+            <AdminSettings onBack={handleLogout} />
+          ) : (
+            <>
+              <AttendanceMarking 
+                classNumber={session.classNumber} 
+                onLogout={handleLogout}
+              />
+              <SyncManager />
+            </>
+          )}
+        </>
+      ) : (
+        <Login onLogin={handleLogin} />
+      )}
+    </>
+  );
+}
+
+export default App;

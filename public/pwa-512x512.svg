@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#4F46E5"/>
+  <path d="M128 192L192 128L384 320L320 384L128 192Z" fill="white"/>
+  <path d="M256 256C256 291.346 227.346 320 192 320C156.654 320 128 291.346 128 256C128 220.654 156.654 192 192 192C227.346 192 256 220.654 256 256Z" fill="white"/>
+  <text x="256" y="450" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" text-anchor="middle">GMCT</text>
+</svg>
