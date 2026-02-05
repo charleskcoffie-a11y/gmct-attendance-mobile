@@ -1,14 +1,34 @@
-import { useState } from 'react';
-import { validateClassAccessCode, getAppSettings } from '../supabase';
+import { useState, useEffect } from 'react';
+import { getAppSettings, supabase } from '../supabase';
 
 interface LoginProps {
   onLogin: (classNumber: number, accessCode: string) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [accessCode, setAccessCode] = useState('');
+  const [className, setClassName] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [maxClasses, setMaxClasses] = useState<number | null>(null);
+  const [loadingClasses, setLoadingClasses] = useState(true);
+
+  useEffect(() => {
+    loadMaxClasses();
+  }, []);
+
+  const loadMaxClasses = async () => {
+    try {
+      const settings = await getAppSettings();
+      const max = typeof settings?.max_classes === 'number' ? settings.max_classes : 10;
+      setMaxClasses(max);
+    } catch (err) {
+      console.error('Error loading classes:', err);
+      setMaxClasses(10);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,24 +36,47 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      // Check for admin access - first try database, then fallback to env var
       const settings = await getAppSettings();
       const dbAdminCode = settings?.admin_password;
       const envAdminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
       
       const adminCode = dbAdminCode || envAdminCode;
       
-      if (accessCode.trim().toLowerCase() === adminCode.toLowerCase()) {
-        onLogin(-1, accessCode.trim()); // -1 indicates admin
+      // Check for admin access
+      if (password.trim().toLowerCase() === adminCode.toLowerCase() && className === 'admin') {
+        onLogin(-1, password.trim());
         return;
       }
 
-      const classNumber = await validateClassAccessCode(accessCode.trim());
+      // Validate class leader credentials
+      if (!className || !password) {
+        setError('Please select a class and enter your password');
+        setLoading(false);
+        return;
+      }
+
+      const classNum = parseInt(className);
       
-      if (classNumber) {
-        onLogin(classNumber, accessCode.trim());
+      // Check class_leaders table for matching class and password
+      const { data: leaders, error: dbError } = await supabase
+        .from('class_leaders')
+        .select('*')
+        .eq('class_number', classNum)
+        .eq('password', password.trim())
+        .eq('active', true)
+        .limit(1);
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        setError('Connection error. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (leaders && leaders.length > 0) {
+        onLogin(classNum, password.trim());
       } else {
-        setError('Invalid access code. Please check with your administrator.');
+        setError('Invalid class number or password. Please try again.');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -53,23 +96,45 @@ export default function Login({ onLogin }: LoginProps) {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">GMCT Attendance</h1>
-          <p className="text-gray-600">Class Leader Check-In</p>
+          <p className="text-gray-600">Class Leader & Admin Login</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label htmlFor="accessCode" className="block text-sm font-medium text-gray-700 mb-2">
-              Access Code
+            <label htmlFor="className" className="block text-sm font-medium text-gray-700 mb-2">
+              User / Class
             </label>
-            <input
-              id="accessCode"
-              type="text"
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-              placeholder="Enter your class code"
+            <select
+              id="className"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg"
+              disabled={loadingClasses}
               required
               autoFocus
+            >
+              <option value="">Select a class or admin</option>
+              <option value="admin">Admin</option>
+              {maxClasses && Array.from({ length: maxClasses }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  Class {i + 1}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-lg"
+              required
               autoComplete="off"
             />
           </div>
@@ -82,7 +147,7 @@ export default function Login({ onLogin }: LoginProps) {
 
           <button
             type="submit"
-            disabled={loading || !accessCode.trim()}
+            disabled={loading || !className || !password || loadingClasses}
             className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-semibold text-lg hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
           >
             {loading ? (
@@ -102,6 +167,7 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="mt-6 text-center text-sm text-gray-500">
           <p>📱 Install this app for offline use</p>
           <p className="text-xs mt-1">Tap the share button and "Add to Home Screen"</p>
+          <p className="text-xs mt-2">Contact your administrator for login credentials</p>
         </div>
       </div>
     </div>
