@@ -27,7 +27,10 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
   const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<ClassLeader>>({});
-
+  const [adminPasswordChange, setAdminPasswordChange] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -289,6 +292,44 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
         "Failed to clear cache: " +
           (err instanceof Error ? err.message : "Unknown error")
       );
+    }
+  };
+
+  const handleChangeAdminPassword = async () => {
+    if (!adminPasswordChange.newPassword || !adminPasswordChange.confirmPassword) {
+      setError("Both password fields are required");
+      return;
+    }
+
+    if (adminPasswordChange.newPassword !== adminPasswordChange.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (adminPasswordChange.newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({ admin_password: adminPasswordChange.newPassword })
+        .eq("id", "app_settings");
+
+      if (error) throw error;
+
+      setSuccess("Admin password changed successfully");
+      setAdminPasswordChange({ newPassword: "", confirmPassword: "" });
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(
+        "Failed to change password: " +
+          (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -569,6 +610,56 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
               </div>
             ))
           )}
+        </div>
+      </div>
+
+      {/* Admin Password Change */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Change Admin Password
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              New Password
+            </label>
+            <input
+              type="password"
+              value={adminPasswordChange.newPassword}
+              onChange={(e) =>
+                setAdminPasswordChange({
+                  ...adminPasswordChange,
+                  newPassword: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter new password (min 6 characters)"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              value={adminPasswordChange.confirmPassword}
+              onChange={(e) =>
+                setAdminPasswordChange({
+                  ...adminPasswordChange,
+                  confirmPassword: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Re-enter new password"
+            />
+          </div>
+          <button
+            onClick={handleChangeAdminPassword}
+            disabled={loading || !adminPasswordChange.newPassword}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+          >
+            {loading ? "Updating..." : "Update Password"}
+          </button>
         </div>
       </div>
 

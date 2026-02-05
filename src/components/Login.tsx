@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { validateClassAccessCode } from '../supabase';
+import { validateClassAccessCode, getAppSettings } from '../supabase';
 
 interface LoginProps {
   onLogin: (classNumber: number, accessCode: string) => void;
@@ -16,9 +16,14 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      // Check for admin access
-      const adminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
-      if (accessCode.trim().toLowerCase() === adminCode) {
+      // Check for admin access - first try database, then fallback to env var
+      const settings = await getAppSettings();
+      const dbAdminCode = settings?.admin_password;
+      const envAdminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
+      
+      const adminCode = dbAdminCode || envAdminCode;
+      
+      if (accessCode.trim().toLowerCase() === adminCode.toLowerCase()) {
         onLogin(-1, accessCode.trim()); // -1 indicates admin
         return;
       }
