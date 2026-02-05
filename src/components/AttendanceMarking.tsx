@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { getAppSettings, getClassMembers, saveMember, deleteMember, saveAttendance } from "../supabase";
+import { getClassMembers, saveMember, deleteMember, saveAttendance } from "../supabase";
 import { Member, ServiceType } from "../types";
 import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle } from "lucide-react";
 
@@ -34,15 +34,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [editingMember, setEditingMember] = useState<EditingMember | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
-  const [memberClassFilter, setMemberClassFilter] = useState("all");
-  const [maxClasses, setMaxClasses] = useState<number | null>(null);
   const [memberFormData, setMemberFormData] = useState<EditingMember>({
     name: "",
   });
 
   useEffect(() => {
     loadMembers();
-    loadAppSettings();
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     
@@ -53,16 +50,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       window.removeEventListener("offline", handleOffline);
     };
   }, [classNumber]);
-
-  const loadAppSettings = async () => {
-    try {
-      const settings = await getAppSettings();
-      const max = typeof settings?.max_classes === "number" ? settings.max_classes : null;
-      setMaxClasses(max && max > 0 ? max : null);
-    } catch (err) {
-      console.error("Error loading app settings:", err);
-    }
-  };
 
   const loadMembers = async () => {
     setLoading(true);
@@ -234,22 +221,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     return (a.name || "").localeCompare(b.name || "");
   });
 
-  const classOptions = maxClasses
-    ? Array.from({ length: maxClasses }, (_, index) => String(index + 1))
-    : Array.from(
-        new Set(
-          sortedMembers
-            .map((m) => m.class_number || (m.assignedClass ? String(m.assignedClass) : ""))
-            .filter(Boolean)
-        )
-      ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
   const filteredMembers = sortedMembers.filter((m) => {
-    const classValue = m.class_number || (m.assignedClass ? String(m.assignedClass) : "");
-    if (memberClassFilter !== "all" && classValue !== memberClassFilter) {
-      return false;
-    }
-
     if (!normalizedSearch) {
       return true;
     }
@@ -364,27 +336,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           </div>
         </div>
 
-        {/* Search + Class Filter */}
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Search */}
+        <div className="mb-4">
           <input
             type="text"
             value={memberSearch}
             onChange={(e) => setMemberSearch(e.target.value)}
             placeholder="Search by name, phone, or member number"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 sm:col-span-2"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <select
-            value={memberClassFilter}
-            onChange={(e) => setMemberClassFilter(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All classes</option>
-            {classOptions.map((classValue) => (
-              <option key={classValue} value={classValue}>
-                Class {classValue}
-              </option>
-            ))}
-          </select>
         </div>
 
         {/* Member Editor Modal */}
