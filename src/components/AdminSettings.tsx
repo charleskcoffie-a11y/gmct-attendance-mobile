@@ -31,6 +31,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     newPassword: "",
     confirmPassword: "",
   });
+  const [ministerEmails, setMinisterEmails] = useState("");
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -173,6 +174,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
 
       if (error) throw error;
       setAppSettings(data);
+      setMinisterEmails(data?.minister_emails || "");
     } catch (err) {
       console.error("Error loading app settings:", err);
     }
@@ -333,6 +335,28 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     }
   };
 
+  const handleSaveMinisterEmails = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({ minister_emails: ministerEmails })
+        .eq("id", "app_settings");
+
+      if (error) throw error;
+
+      setSuccess("Minister emails updated successfully");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(
+        "Failed to update minister emails: " +
+          (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       {/* Header */}
@@ -439,6 +463,30 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Minister Emails */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Minister Emails</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Add one or more emails separated by commas. Quarterly reports will use these addresses.
+        </p>
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            value={ministerEmails}
+            onChange={(e) => setMinisterEmails(e.target.value)}
+            placeholder="minister1@example.com, minister2@example.com"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSaveMinisterEmails}
+            disabled={loading}
+            className="self-start px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save Emails"}
+          </button>
+        </div>
+      </div>
 
       {/* Class Leaders Management */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">

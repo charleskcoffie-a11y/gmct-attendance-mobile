@@ -48,6 +48,7 @@ export interface AppSettings {
   org_name?: string;
   logo_url?: string;
   max_classes?: number;
+  minister_emails?: string;
 }
 
 export interface ClassSession {
@@ -70,6 +71,30 @@ export interface ClassLeader {
   updatedBy?: string;
   lastUpdated?: string;
   created_at?: string;
+}
+
+export type ReportType = 'monthly' | 'quarterly';
+
+export interface ReportMemberNote {
+  id?: string;
+  classNumber: string;
+  memberId: string;
+  reportType: ReportType;
+  periodKey: string;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClassReportStatus {
+  id?: string;
+  classNumber: string;
+  reportType: ReportType;
+  periodKey: string;
+  status: 'draft' | 'submitted';
+  submittedAt?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Offline sync queue item
@@ -135,6 +160,34 @@ export interface Database {
         Row: AppSettings;
         Insert: AppSettings;
         Update: Partial<AppSettings>;
+      };
+      report_member_notes: {
+        Row: {
+          id: string;
+          class_number: string;
+          member_id: string;
+          report_type: ReportType;
+          period_key: string;
+          note?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: any;
+        Update: any;
+      };
+      class_reports: {
+        Row: {
+          id: string;
+          class_number: string;
+          report_type: 'quarterly';
+          period_key: string;
+          status: 'draft' | 'submitted';
+          submitted_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: any;
+        Update: any;
       };
       class_leaders: {
         Row: {

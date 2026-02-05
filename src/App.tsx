@@ -3,6 +3,7 @@ import Login from './components/Login';
 import AttendanceMarking from './components/AttendanceMarking';
 import AdminAttendanceView from './components/AdminAttendanceView';
 import AdminSettings from './components/AdminSettings';
+import ClassReports from './components/ClassReports';
 import SyncManager from './components/SyncManager';
 import { ClassSession } from './types';
 
@@ -10,6 +11,7 @@ function App() {
   const [session, setSession] = useState<ClassSession | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminView, setAdminView] = useState<'attendance' | 'settings'>('attendance');
+  const [classView, setClassView] = useState<'attendance' | 'reports'>('attendance');
 
   useEffect(() => {
     const savedSession = localStorage.getItem('classSession');
@@ -40,6 +42,7 @@ function App() {
     setSession(null);
     setIsAdmin(false);
     setAdminView('attendance');
+    setClassView('attendance');
     localStorage.removeItem('classSession');
   };
 
@@ -101,8 +104,21 @@ function App() {
             </div>
           ) : (
             <>
-              <AttendanceMarking classNumber={session.classNumber} onLogout={handleLogout} />
-              <SyncManager />
+              {classView === 'attendance' ? (
+                <>
+                  <AttendanceMarking
+                    classNumber={session.classNumber}
+                    onLogout={handleLogout}
+                    onShowReports={() => setClassView('reports')}
+                  />
+                  <SyncManager />
+                </>
+              ) : (
+                <ClassReports
+                  classNumber={session.classNumber}
+                  onBack={() => setClassView('attendance')}
+                />
+              )}
             </>
           )}
         </>

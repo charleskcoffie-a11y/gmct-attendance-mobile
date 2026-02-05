@@ -238,6 +238,149 @@ export async function getClassAttendanceHistory(classNumber: number, limit = 10)
   return data || [];
 }
 
+// Get attendance records for a date range
+export async function getAttendanceRange(
+  classNumber: number,
+  startDate: string,
+  endDate: string
+) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .gte('attendance_date', startDate)
+    .lte('attendance_date', endDate)
+    .order('attendance_date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching attendance range:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Update attendance totals
+export async function updateAttendanceTotals(
+  attendanceId: string,
+  totals: { present: number; absent: number; visitors?: number }
+) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .update({
+      total_members_present: totals.present,
+      total_members_absent: totals.absent,
+      total_visitors: totals.visitors ?? 0,
+      last_updated: new Date().toISOString()
+    })
+    .eq('id', attendanceId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating attendance totals:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Get report notes for members
+export async function getReportMemberNotes(
+  classNumber: number,
+  reportType: 'monthly' | 'quarterly',
+  periodKey: string
+) {
+  const { data, error } = await supabase
+    .from('report_member_notes')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .eq('report_type', reportType)
+    .eq('period_key', periodKey);
+
+  if (error) {
+    console.error('Error fetching report notes:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// Save report notes for members
+export async function saveReportMemberNotes(
+  classNumber: number,
+  reportType: 'monthly' | 'quarterly',
+  periodKey: string,
+  notes: Array<{ memberId: string; note: string }>
+) {
+  const payload = notes.map((note) => ({
+    class_number: classNumber.toString(),
+    member_id: note.memberId,
+    report_type: reportType,
+    period_key: periodKey,
+    note: note.note,
+    updated_at: new Date().toISOString()
+  }));
+
+  const { error } = await supabase
+    .from('report_member_notes')
+    .upsert(payload, { onConflict: 'class_number,member_id,report_type,period_key' });
+
+  if (error) {
+    console.error('Error saving report notes:', error);
+    throw error;
+  }
+}
+
+// Get report status (quarterly confirmation)
+export async function getClassReportStatus(
+  classNumber: number,
+  reportType: 'quarterly',
+  periodKey: string
+) {
+  const { data, error } = await supabase
+    .from('class_reports')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .eq('report_type', reportType)
+    .eq('period_key', periodKey)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching report status:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// Confirm quarterly report
+export async function confirmClassReport(
+  classNumber: number,
+  reportType: 'quarterly',
+  periodKey: string
+) {
+  const { data, error } = await supabase
+    .from('class_reports')
+    .upsert({
+      class_number: classNumber.toString(),
+      report_type: reportType,
+      period_key: periodKey,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'class_number,report_type,period_key' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error confirming report:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 // Get all class leaders
 export async function getClassLeaders() {
   const { data, error } = await supabase

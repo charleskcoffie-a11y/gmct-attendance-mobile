@@ -6,6 +6,7 @@ import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle 
 interface AttendanceMarkingProps {
   classNumber: number;
   onLogout: () => void;
+  onShowReports?: () => void;
 }
 
 interface MemberWithStatus extends Member {
@@ -21,6 +22,7 @@ interface EditingMember {
 export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   classNumber,
   onLogout,
+  onShowReports,
 }) => {
   const [serviceType, setServiceType] = useState<ServiceType>("sunday");
   const [selectedDate, setSelectedDate] = useState(
@@ -183,6 +185,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const handleSubmitAttendance = async () => {
+    if (serviceDateWarning) {
+      setError(serviceDateWarning);
+      return;
+    }
+
     if (members.length === 0) {
       setError("No members to submit");
       return;
@@ -242,6 +249,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     (m) => m.attendanceStatus === "travel"
   ).length;
 
+  const selectedDay = selectedDate
+    ? new Date(`${selectedDate}T00:00:00`).getDay()
+    : null;
+  const serviceDateWarning = selectedDay === null
+    ? null
+    : serviceType === "sunday"
+    ? (selectedDay !== 0 ? "Sunday Service must be recorded on a Sunday." : null)
+    : (selectedDay !== 2 ? "Bible Study must be recorded on a Tuesday." : null);
+
   const normalizedSearch = memberSearch.trim().toLowerCase();
   const sortedMembers = [...members].sort((a, b) => {
     const classA = a.class_number || (a.assignedClass ? String(a.assignedClass) : "");
@@ -279,6 +295,14 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               <Wifi className="w-5 h-5 text-green-300" />
             ) : (
               <WifiOff className="w-5 h-5 text-yellow-300" />
+            )}
+            {onShowReports && (
+              <button
+                onClick={onShowReports}
+                className="px-3 py-2 bg-blue-700 hover:bg-blue-800 rounded-lg text-sm font-medium transition"
+              >
+                Reports
+              </button>
             )}
             <button
               onClick={onLogout}
@@ -335,6 +359,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         {!isOnline && (
           <div className="p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-sm">
             You are currently offline. Data will be synced when connection is restored.
+          </div>
+        )}
+
+        {serviceDateWarning && (
+          <div className="p-3 bg-orange-100 border border-orange-300 rounded-lg text-orange-800 text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {serviceDateWarning}
           </div>
         )}
 
@@ -560,7 +591,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               </button>
               <button
                 onClick={handleSubmitAttendance}
-                disabled={loading}
+                disabled={loading || !!serviceDateWarning}
                 className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
               >
                 {loading ? "Submitting..." : "Submit Attendance"}
