@@ -49,6 +49,8 @@ export interface AppSettings {
   logo_url?: string;
   max_classes?: number;
   minister_emails?: string;
+  monthly_absence_threshold?: number;
+  quarterly_absence_threshold?: number;
 }
 
 export interface ClassSession {
@@ -93,6 +95,24 @@ export interface ClassReportStatus {
   periodKey: string;
   status: 'draft' | 'submitted';
   submittedAt?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ManualReport {
+  id?: string;
+  classNumber: string;
+  reportDate: string;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  absenceTypes: ('absent' | 'sick' | 'travel')[];
+  reportData: Record<string, {
+    name: string;
+    absent_count: number;
+    sick_count: number;
+    travel_count: number;
+    total_absences: number;
+  }>;
   created_at?: string;
   updated_at?: string;
 }

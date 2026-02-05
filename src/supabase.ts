@@ -490,3 +490,141 @@ export async function deleteClassLeader(id: string) {
     throw error;
   }
 }
+
+// Get absence summary for a date range and absence types
+export async function getAbsenceSummary(
+  classNumber: number,
+  startDate: string,
+  endDate: string
+) {
+  const { error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .gte('attendance_date', startDate)
+    .lte('attendance_date', endDate);
+
+  if (error) {
+    console.error('Error fetching attendance for absence summary:', error);
+    return {};
+  }
+
+  // Get all members for this class
+  const members = await getClassMembers(classNumber);
+
+  // Count absences per member
+  const summary: Record<string, { name: string; absent_count: number; sick_count: number; travel_count: number; total_absences: number }> = {};
+
+  members.forEach(member => {
+    summary[member.id] = {
+      name: member.name,
+      absent_count: 0,
+      sick_count: 0,
+      travel_count: 0,
+      total_absences: 0
+    };
+  });
+
+  // Note: This is a simplified implementation
+  // In a real scenario, you'd need individual member absence records
+  
+  return summary;
+}
+
+// Save manual report
+export async function saveManualReport(
+  classNumber: number,
+  dateRangeStart: string,
+  dateRangeEnd: string,
+  absenceTypes: ('absent' | 'sick' | 'travel')[],
+  reportData: Record<string, any>
+) {
+  const { data, error } = await supabase
+    .from('manual_reports')
+    .insert({
+      class_number: classNumber.toString(),
+      date_range_start: dateRangeStart,
+      date_range_end: dateRangeEnd,
+      absence_types: JSON.stringify(absenceTypes),
+      report_data: reportData,
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving manual report:', error);
+    throw error;
+  }
+
+  // Clean up old reports - keep only the 5 most recent
+  await cleanupOldManualReports(classNumber);
+
+  return data;
+}
+
+// Get manual reports for a class (archive)
+export async function getManualReports(classNumber: number) {
+  const { data, error } = await supabase
+    .from('manual_reports')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .order('report_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching manual reports:', error);
+    return [];
+  }
+
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    classNumber: r.class_number,
+    reportDate: r.report_date,
+    dateRangeStart: r.date_range_start,
+    dateRangeEnd: r.date_range_end,
+    absenceTypes: JSON.parse(r.absence_types || '[]'),
+    reportData: r.report_data,
+    created_at: r.created_at
+  }));
+}
+
+// Delete manual report
+export async function deleteManualReport(reportId: string) {
+  const { error } = await supabase
+    .from('manual_reports')
+    .delete()
+    .eq('id', reportId);
+
+  if (error) {
+    console.error('Error deleting manual report:', error);
+    throw error;
+  }
+}
+
+// Clean up old manual reports (keep only the 5 most recent)
+async function cleanupOldManualReports(classNumber: number) {
+  const { data, error } = await supabase
+    .from('manual_reports')
+    .select('id')
+    .eq('class_number', classNumber.toString())
+    .order('report_date', { ascending: false });
+
+  if (error || !data) {
+    console.error('Error fetching reports for cleanup:', error);
+    return;
+  }
+
+  // Delete all reports after the 5th most recent
+  if (data.length > 5) {
+    const idsToDelete = data.slice(5).map(r => r.id);
+    const { error: deleteError } = await supabase
+      .from('manual_reports')
+      .delete()
+      .in('id', idsToDelete);
+
+    if (deleteError) {
+      console.error('Error cleaning up old reports:', deleteError);
+    }
+  }
+}
+

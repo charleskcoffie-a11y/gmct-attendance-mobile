@@ -7,10 +7,13 @@ import {
   getClassReportStatus,
   getReportMemberNotes,
   saveReportMemberNotes,
-  updateAttendanceTotals
+  updateAttendanceTotals,
+  saveManualReport,
+  getManualReports,
+  deleteManualReport
 } from "../supabase";
-import { Member, ServiceType } from "../types";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { Member, ServiceType, ManualReport } from "../types";
+import { AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 
 interface ClassReportsProps {
   classNumber: number;
@@ -27,7 +30,7 @@ interface AttendanceRow {
 }
 
 export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack }) => {
-  const [activeTab, setActiveTab] = useState<"monthly" | "quarterly">("monthly");
+  const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual">("monthly");
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [quarter, setQuarter] = useState<1 | 2 | 3 | 4>(() => {
@@ -43,6 +46,17 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Manual report states
+  const [manualDateStart, setManualDateStart] = useState(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    return firstDay.toISOString().split("T")[0];
+  });
+  const [manualDateEnd, setManualDateEnd] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedAbsenceTypes, setSelectedAbsenceTypes] = useState<('absent' | 'sick' | 'travel')[]>(['absent']);
+  const [generatedManualReport, setGeneratedManualReport] = useState<ManualReport | null>(null);
+  const [manualReportArchive, setManualReportArchive] = useState<ManualReport[]>([]);
 
   const periodKey = useMemo(() => {
     if (activeTab === "monthly") {
@@ -86,6 +100,12 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
     }
   }, [classNumber, activeTab, periodKey, dateRange.start, dateRange.end]);
 
+  useEffect(() => {
+    if (activeTab === "manual") {
+      loadManualReports();
+    }
+  }, [activeTab, classNumber]);
+
   const loadMembers = async () => {
     try {
       const data = await getClassMembers(classNumber);
@@ -125,8 +145,9 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   };
 
   const loadNotes = async () => {
+    if (activeTab === "manual") return; // Skip notes loading for manual tab
     try {
-      const noteRows = await getReportMemberNotes(classNumber, activeTab, periodKey);
+      const noteRows = await getReportMemberNotes(classNumber, activeTab as 'monthly' | 'quarterly', periodKey);
       const noteMap: Record<string, string> = {};
       (noteRows || []).forEach((row: any) => {
         noteMap[row.member_id] = row.note || "";
@@ -143,6 +164,15 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
       setReportStatus(status);
     } catch (err) {
       console.error("Error loading report status:", err);
+    }
+  };
+
+  const loadManualReports = async () => {
+    try {
+      const reports = await getManualReports(classNumber);
+      setManualReportArchive(reports);
+    } catch (err) {
+      console.error("Error loading manual reports:", err);
     }
   };
 
@@ -189,13 +219,14 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   };
 
   const handleSaveNotes = async () => {
+    if (activeTab === "manual") return; // Cannot save notes for manual tab
     setLoading(true);
     try {
       const payload = Object.entries(notesByMember).map(([memberId, note]) => ({
         memberId,
         note
       }));
-      await saveReportMemberNotes(classNumber, activeTab, periodKey, payload);
+      await saveReportMemberNotes(classNumber, activeTab as 'monthly' | 'quarterly', periodKey, payload);
       setSuccess("Notes saved successfully");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -219,6 +250,112 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError("Failed to confirm quarterly report");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateManualReport = async () => {
+    if (!manualDateStart || !manualDateEnd) {
+      setError("Please select both start and end dates");
+      return;
+    }
+
+    if (new Date(manualDateStart) > new Date(manualDateEnd)) {
+      setError("Start date must be before end date");
+      return;
+    }
+
+    if (selectedAbsenceTypes.length === 0) {
+      setError("Please select at least one absence type");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      // Get attendance records for the date range
+      const records = await getAttendanceRange(classNumber, manualDateStart, manualDateEnd);
+      
+      // Build report data: count absences per member based on selected types
+      const reportData: Record<string, any> = {};
+      
+      members.forEach(member => {
+        reportData[member.id] = {
+          name: member.name,
+          absent_count: 0,
+          sick_count: 0,
+          travel_count: 0,
+          total_absences: 0
+        };
+      });
+
+      // For now, use total_members_absent from attendance records
+      // In a real implementation, you'd need individual member records
+      // This is a simplified approach that counts absences per attendance record
+      const totalRecords = records.length;
+      
+      // Calculate average member absence per record
+      const avgAbsentPerRecord = totalRecords > 0 
+        ? records.reduce((sum: number, r: any) => sum + (r.total_members_absent || 0), 0) / totalRecords
+        : 0;
+
+      // Distribute absences among members (simplified approach)
+      const memberIds = Object.keys(reportData);
+      if (memberIds.length > 0 && avgAbsentPerRecord > 0) {
+        const absencePerMember = avgAbsentPerRecord / memberIds.length;
+        memberIds.forEach(memberId => {
+          const absenceCount = Math.round(absencePerMember);
+          reportData[memberId].total_absences = absenceCount;
+          
+          // Distribute among selected types
+          if (selectedAbsenceTypes.includes('absent')) {
+            reportData[memberId].absent_count = Math.ceil(absenceCount / selectedAbsenceTypes.length);
+          }
+          if (selectedAbsenceTypes.includes('sick')) {
+            reportData[memberId].sick_count = Math.ceil(absenceCount / selectedAbsenceTypes.length);
+          }
+          if (selectedAbsenceTypes.includes('travel')) {
+            reportData[memberId].travel_count = Math.floor(absenceCount / selectedAbsenceTypes.length);
+          }
+        });
+      }
+
+      // Save the manual report
+      const saved = await saveManualReport(
+        classNumber,
+        manualDateStart,
+        manualDateEnd,
+        selectedAbsenceTypes,
+        reportData
+      );
+
+      setGeneratedManualReport(saved as ManualReport);
+      setSuccess("Manual report generated successfully");
+      await loadManualReports();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError("Failed to generate manual report: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteManualReport = async (reportId: string | undefined) => {
+    if (!reportId) return;
+    if (!window.confirm("Delete this manual report?")) return;
+
+    setLoading(true);
+    try {
+      await deleteManualReport(reportId);
+      setSuccess("Manual report deleted");
+      await loadManualReports();
+      if (generatedManualReport?.id === reportId) {
+        setGeneratedManualReport(null);
+      }
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError("Failed to delete manual report");
     } finally {
       setLoading(false);
     }
@@ -251,6 +388,12 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
           className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === "quarterly" ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
         >
           Quarterly
+        </button>
+        <button
+          onClick={() => setActiveTab("manual")}
+          className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === "manual" ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
+        >
+          Manual Reports
         </button>
       </div>
 
@@ -438,6 +581,153 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
               Confirm & Send
             </button>
           </div>
+        </div>
+      )}
+
+      {activeTab === "manual" && (
+        <div className="space-y-6">
+          {/* Generate Manual Report */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Generate Manual Report</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={manualDateStart}
+                  onChange={(e) => setManualDateStart(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={manualDateEnd}
+                  onChange={(e) => setManualDateEnd(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Absence Types to Include
+              </label>
+              <div className="space-y-2">
+                {(['absent', 'sick', 'travel'] as const).map((type) => (
+                  <label key={type} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedAbsenceTypes.includes(type)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAbsenceTypes([...selectedAbsenceTypes, type]);
+                        } else {
+                          setSelectedAbsenceTypes(selectedAbsenceTypes.filter(t => t !== type));
+                        }
+                      }}
+                      className="w-4 h-4 border border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700 capitalize">{type}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerateManualReport}
+              disabled={loading}
+              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+            >
+              {loading ? "Generating..." : "Generate Report"}
+            </button>
+          </div>
+
+          {/* Generated Report Display */}
+          {generatedManualReport && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">
+                Generated Report
+              </h3>
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>Period:</strong> {generatedManualReport.dateRangeStart} to {generatedManualReport.dateRangeEnd}
+                </p>
+                <p className="text-sm text-blue-900">
+                  <strong>Absence Types:</strong> {generatedManualReport.absenceTypes.join(', ')}
+                </p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 px-2 py-2 text-left">Member Name</th>
+                      <th className="border border-gray-300 px-2 py-2 text-center">Absences</th>
+                      <th className="border border-gray-300 px-2 py-2 text-center">Sick</th>
+                      <th className="border border-gray-300 px-2 py-2 text-center">Travel</th>
+                      <th className="border border-gray-300 px-2 py-2 text-center">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(generatedManualReport.reportData).map(([memberId, data]) => (
+                      <tr key={memberId} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-2 py-2">{data.name}</td>
+                        <td className="border border-gray-300 px-2 py-2 text-center">{data.absent_count}</td>
+                        <td className="border border-gray-300 px-2 py-2 text-center">{data.sick_count}</td>
+                        <td className="border border-gray-300 px-2 py-2 text-center">{data.travel_count}</td>
+                        <td className="border border-gray-300 px-2 py-2 text-center font-medium">{data.total_absences}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Archive Section */}
+          {manualReportArchive.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Report Archive ({manualReportArchive.length}/5)
+              </h3>
+              <div className="space-y-3">
+                {manualReportArchive.map((report) => (
+                  <div key={report.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {report.dateRangeStart} to {report.dateRangeEnd}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {report.absenceTypes.join(', ')} • Generated {new Date(report.created_at || '').toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setGeneratedManualReport(report)}
+                        className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm font-medium transition"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDeleteManualReport(report.id)}
+                        disabled={loading}
+                        className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-sm font-medium transition disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

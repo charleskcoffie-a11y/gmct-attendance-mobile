@@ -32,6 +32,8 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     confirmPassword: "",
   });
   const [ministerEmails, setMinisterEmails] = useState("");
+  const [monthlyAbsenceThreshold, setMonthlyAbsenceThreshold] = useState(4);
+  const [quarterlyAbsenceThreshold, setQuarterlyAbsenceThreshold] = useState(10);
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -175,6 +177,8 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       if (error) throw error;
       setAppSettings(data);
       setMinisterEmails(data?.minister_emails || "");
+      setMonthlyAbsenceThreshold(data?.monthly_absence_threshold || 4);
+      setQuarterlyAbsenceThreshold(data?.quarterly_absence_threshold || 10);
     } catch (err) {
       console.error("Error loading app settings:", err);
     }
@@ -357,6 +361,31 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     }
   };
 
+  const handleSaveAbsenceThresholds = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({
+          monthly_absence_threshold: monthlyAbsenceThreshold,
+          quarterly_absence_threshold: quarterlyAbsenceThreshold
+        })
+        .eq("id", "app_settings");
+
+      if (error) throw error;
+
+      setSuccess("Absence thresholds updated successfully");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(
+        "Failed to update absence thresholds: " +
+          (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       {/* Header */}
@@ -486,6 +515,55 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
             {loading ? "Saving..." : "Save Emails"}
           </button>
         </div>
+      </div>
+
+      {/* Absence Thresholds */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Absence Thresholds</h2>
+        <p className="text-sm text-gray-600 mb-6">
+          Set the maximum number of absences (absent, sick, travel combined) allowed before flagging in reports.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Monthly Absence Threshold
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                value={monthlyAbsenceThreshold}
+                onChange={(e) => setMonthlyAbsenceThreshold(Math.max(1, parseInt(e.target.value) || 1))}
+                min="1"
+                max="100"
+                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-600">absences per month</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quarterly Absence Threshold
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                value={quarterlyAbsenceThreshold}
+                onChange={(e) => setQuarterlyAbsenceThreshold(Math.max(1, parseInt(e.target.value) || 1))}
+                min="1"
+                max="100"
+                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-600">absences per quarter</span>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleSaveAbsenceThresholds}
+          disabled={loading}
+          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+        >
+          {loading ? "Saving..." : "Save Thresholds"}
+        </button>
       </div>
 
       {/* Class Leaders Management */}
