@@ -3,6 +3,7 @@ import Login from './components/Login';
 import AttendanceMarking from './components/AttendanceMarking';
 import AdminAttendanceView from './components/AdminAttendanceView';
 import AdminSettings from './components/AdminSettings';
+import AdminClassSelector from './components/AdminClassSelector';
 import ClassReports from './components/ClassReports';
 import SyncManager from './components/SyncManager';
 import { ClassSession } from './types';
@@ -10,8 +11,10 @@ import { ClassSession } from './types';
 function App() {
   const [session, setSession] = useState<ClassSession | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminView, setAdminView] = useState<'attendance' | 'settings'>('attendance');
+  const [adminView, setAdminView] = useState<'attendance' | 'settings' | 'class'>('attendance');
   const [classView, setClassView] = useState<'attendance' | 'reports'>('attendance');
+  const [adminSelectedClass, setAdminSelectedClass] = useState<number | null>(null);
+  const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
 
   useEffect(() => {
     const savedSession = localStorage.getItem('classSession');
@@ -20,6 +23,9 @@ function App() {
         const parsed = JSON.parse(savedSession);
         setSession(parsed);
         setIsAdmin(parsed.classNumber === -1);
+        if (parsed.classNumber === -1) {
+          setAdminView('class');
+        }
       } catch (error) {
         console.error('Error loading session:', error);
         localStorage.removeItem('classSession');
@@ -35,6 +41,9 @@ function App() {
     };
     setSession(newSession);
     setIsAdmin(classNumber === -1);
+    if (classNumber === -1) {
+      setAdminView('class');
+    }
     localStorage.setItem('classSession', JSON.stringify(newSession));
   };
 
@@ -43,6 +52,8 @@ function App() {
     setIsAdmin(false);
     setAdminView('attendance');
     setClassView('attendance');
+    setAdminSelectedClass(null);
+    setAdminClassView('attendance');
     localStorage.removeItem('classSession');
   };
 
@@ -72,14 +83,39 @@ function App() {
                     <AdminAttendanceView onLogout={handleLogout} />
                     <SyncManager />
                   </div>
-                ) : (
+                ) : adminView === 'settings' ? (
                   <AdminSettings onBack={() => setAdminView('attendance')} />
+                ) : adminSelectedClass === null ? (
+                  <AdminClassSelector
+                    onSelectClass={(classNumber) => {
+                      setAdminSelectedClass(classNumber);
+                      setAdminClassView('attendance');
+                    }}
+                    onLogout={handleLogout}
+                  />
+                ) : adminClassView === 'attendance' ? (
+                  <>
+                    <AttendanceMarking
+                      classNumber={adminSelectedClass}
+                      onLogout={handleLogout}
+                      onShowReports={() => setAdminClassView('reports')}
+                      onBackToClasses={() => setAdminSelectedClass(null)}
+                      isAdminView={true}
+                    />
+                    <SyncManager />
+                  </>
+                ) : (
+                  <ClassReports
+                    classNumber={adminSelectedClass}
+                    onBack={() => setAdminClassView('attendance')}
+                    onBackToClasses={() => setAdminSelectedClass(null)}
+                  />
                 )}
               </div>
 
               {/* Bottom Navigation */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg safe-area-bottom">
-                <div className="grid grid-cols-2 h-16">
+                <div className="grid grid-cols-3 h-16">
                   <button 
                     onClick={() => setAdminView('attendance')} 
                     className={`flex flex-col items-center justify-center space-y-1 transition ${adminView === 'attendance' ? 'text-blue-600' : 'text-gray-500'}`}
@@ -88,6 +124,15 @@ function App() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
                     <span className="text-xs font-medium">Attendance</span>
+                  </button>
+                  <button 
+                    onClick={() => setAdminView('class')} 
+                    className={`flex flex-col items-center justify-center space-y-1 transition ${adminView === 'class' ? 'text-blue-600' : 'text-gray-500'}`}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-xs font-medium">View Class</span>
                   </button>
                   <button 
                     onClick={() => setAdminView('settings')} 
@@ -110,6 +155,7 @@ function App() {
                     classNumber={session.classNumber}
                     onLogout={handleLogout}
                     onShowReports={() => setClassView('reports')}
+                    isAdminView={false}
                   />
                   <SyncManager />
                 </>

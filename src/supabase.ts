@@ -560,7 +560,20 @@ export async function saveManualReport(
   // Clean up old reports - keep only the 5 most recent
   await cleanupOldManualReports(classNumber);
 
-  return data;
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    classNumber: data.class_number,
+    reportDate: data.report_date,
+    dateRangeStart: data.date_range_start,
+    dateRangeEnd: data.date_range_end,
+    absenceTypes: JSON.parse(data.absence_types || '[]'),
+    reportData: data.report_data,
+    created_at: data.created_at
+  };
 }
 
 // Get manual reports for a class (archive)

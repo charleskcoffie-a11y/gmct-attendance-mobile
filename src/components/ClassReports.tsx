@@ -5,8 +5,6 @@ import {
   getAttendanceRange,
   getClassMembers,
   getClassReportStatus,
-  getReportMemberNotes,
-  saveReportMemberNotes,
   updateAttendanceTotals,
   saveManualReport,
   getManualReports,
@@ -18,6 +16,7 @@ import { AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 interface ClassReportsProps {
   classNumber: number;
   onBack: () => void;
+  onBackToClasses?: () => void;
 }
 
 interface AttendanceRow {
@@ -29,7 +28,15 @@ interface AttendanceRow {
   total_visitors: number;
 }
 
-export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack }) => {
+interface QuarterlyReportSummary {
+  periodKey: string;
+  dateRange: { start: string; end: string };
+  totals: { present: number; absent: number; visitors: number };
+  records: AttendanceRow[];
+  generatedAt: string;
+}
+
+export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack, onBackToClasses }) => {
   const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual">("monthly");
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -39,13 +46,14 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   });
   const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [notesByMember, setNotesByMember] = useState<Record<string, string>>({});
   const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { present: number; absent: number; visitors: number }>>({});
   const [reportStatus, setReportStatus] = useState<any>(null);
   const [ministerEmails, setMinisterEmails] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [quarterlyReportData, setQuarterlyReportData] = useState<QuarterlyReportSummary | null>(null);
+  const [showQuarterlyReport, setShowQuarterlyReport] = useState(false);
 
   // Manual report states
   const [manualDateStart, setManualDateStart] = useState(() => {
@@ -85,6 +93,56 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
     };
   }, [activeTab, monthKey, year, quarter]);
 
+  const attendanceTotals = useMemo(() => {
+    return attendanceRows.reduce(
+      (acc, row) => {
+        acc.present += row.total_members_present || 0;
+        acc.absent += row.total_members_absent || 0;
+        acc.visitors += row.total_visitors || 0;
+        acc.records += 1;
+        return acc;
+      },
+      { present: 0, absent: 0, visitors: 0, records: 0 }
+    );
+  }, [attendanceRows]);
+
+  const trendSeries = useMemo(() => {
+    return [...attendanceRows]
+      .sort((a, b) => a.attendance_date.localeCompare(b.attendance_date))
+      .map((row) => ({
+        date: row.attendance_date,
+        present: row.total_members_present || 0,
+        absent: row.total_members_absent || 0
+      }));
+  }, [attendanceRows]);
+
+  const maxTrendValue = useMemo(() => {
+    const values = trendSeries.map((item) => item.present);
+    return Math.max(1, ...values);
+  }, [trendSeries]);
+
+  const monthlyBreakdown = useMemo(() => {
+    const map = new Map<string, { present: number; absent: number; visitors: number; count: number }>();
+    attendanceRows.forEach((row) => {
+      const month = row.attendance_date.slice(0, 7);
+      const current = map.get(month) || { present: 0, absent: 0, visitors: 0, count: 0 };
+      current.present += row.total_members_present || 0;
+      current.absent += row.total_members_absent || 0;
+      current.visitors += row.total_visitors || 0;
+      current.count += 1;
+      map.set(month, current);
+    });
+
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, totals]) => ({ month, ...totals }));
+  }, [attendanceRows]);
+
+  const maxMonthlyPresent = useMemo(() => {
+    const values = monthlyBreakdown.map((item) => item.present);
+    return Math.max(1, ...values);
+  }, [monthlyBreakdown]);
+
   useEffect(() => {
     loadMembers();
     loadSettings();
@@ -92,7 +150,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
 
   useEffect(() => {
     loadAttendance();
-    loadNotes();
     if (activeTab === "quarterly") {
       loadReportStatus();
     } else {
@@ -141,20 +198,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
       setError("Failed to load attendance records");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadNotes = async () => {
-    if (activeTab === "manual") return; // Skip notes loading for manual tab
-    try {
-      const noteRows = await getReportMemberNotes(classNumber, activeTab as 'monthly' | 'quarterly', periodKey);
-      const noteMap: Record<string, string> = {};
-      (noteRows || []).forEach((row: any) => {
-        noteMap[row.member_id] = row.note || "";
-      });
-      setNotesByMember(noteMap);
-    } catch (err) {
-      console.error("Error loading notes:", err);
     }
   };
 
@@ -218,22 +261,35 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
     }
   };
 
-  const handleSaveNotes = async () => {
-    if (activeTab === "manual") return; // Cannot save notes for manual tab
-    setLoading(true);
-    try {
-      const payload = Object.entries(notesByMember).map(([memberId, note]) => ({
-        memberId,
-        note
-      }));
-      await saveReportMemberNotes(classNumber, activeTab as 'monthly' | 'quarterly', periodKey, payload);
-      setSuccess("Notes saved successfully");
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError("Failed to save notes");
-    } finally {
-      setLoading(false);
+  const handleGenerateQuarterlyReport = () => {
+    if (activeTab !== "quarterly") return;
+    if (attendanceRows.length === 0) {
+      setError("No attendance records to generate a quarterly report.");
+      return;
     }
+
+    const totals = attendanceRows.reduce(
+      (acc, row) => {
+        acc.present += row.total_members_present || 0;
+        acc.absent += row.total_members_absent || 0;
+        acc.visitors += row.total_visitors || 0;
+        return acc;
+      },
+      { present: 0, absent: 0, visitors: 0 }
+    );
+
+    const summary: QuarterlyReportSummary = {
+      periodKey,
+      dateRange,
+      totals,
+      records: attendanceRows,
+      generatedAt: new Date().toISOString()
+    };
+
+    setQuarterlyReportData(summary);
+    setShowQuarterlyReport(false);
+    setSuccess("Quarterly report generated. Click Open Report to view.");
+    setTimeout(() => setSuccess(null), 3000);
   };
 
   const handleConfirmQuarterly = async () => {
@@ -362,42 +418,55 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Class Reports</h1>
-          <p className="text-sm text-gray-600">Class {classNumber}</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              Class Reports
+            </h1>
+            <p className="text-sm text-gray-600">Class {classNumber}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {onBackToClasses && (
+              <button
+                onClick={onBackToClasses}
+                className="px-5 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition-all shadow-md border border-gray-200"
+              >
+                Back to Classes
+              </button>
+            )}
+            <button
+              onClick={onBack}
+              className="px-5 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition-all shadow-md border border-gray-200"
+            >
+              Back to Attendance
+            </button>
+          </div>
         </div>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-medium transition"
-        >
-          Back to Attendance
-        </button>
-      </div>
 
-      <div className="mb-4 flex gap-2">
-        <button
-          onClick={() => setActiveTab("monthly")}
-          className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === "monthly" ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setActiveTab("quarterly")}
-          className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === "quarterly" ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
-        >
-          Quarterly
-        </button>
-        <button
-          onClick={() => setActiveTab("manual")}
-          className={`px-4 py-2 rounded-lg font-medium transition ${activeTab === "manual" ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
-        >
-          Manual Reports
-        </button>
-      </div>
+        <div className="mb-6 flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab("monthly")}
+            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "monthly" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setActiveTab("quarterly")}
+            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "quarterly" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+          >
+            Quarterly
+          </button>
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "manual" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+          >
+            Manual Reports
+          </button>
+        </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
         {activeTab === "monthly" ? (
           <div className="flex flex-col gap-3">
             <label className="text-sm font-medium text-gray-700">Select Month</label>
@@ -408,8 +477,8 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
               className="max-w-xs px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>
-        ) : (
-          <div className="flex flex-col gap-3">
+        ) : activeTab === "quarterly" ? (
+          <div className="flex flex-col gap-4">
             <label className="text-sm font-medium text-gray-700">Select Quarter</label>
             <div className="flex flex-wrap gap-3">
               <select
@@ -431,8 +500,27 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                 <option value={3}>Q3</option>
                 <option value={4}>Q4</option>
               </select>
+              <button
+                onClick={handleGenerateQuarterlyReport}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-md"
+              >
+                Generate Quarterly Report
+              </button>
             </div>
+            {quarterlyReportData && !showQuarterlyReport && (
+              <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm">
+                <span className="text-indigo-800 font-medium">Report ready for {quarterlyReportData.periodKey}.</span>
+                <button
+                  onClick={() => setShowQuarterlyReport(true)}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition"
+                >
+                  Open Report
+                </button>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="text-sm text-gray-600">Configure your manual report below.</div>
         )}
       </div>
 
@@ -449,26 +537,99 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Attendance Records</h2>
-          <span className="text-sm text-gray-600">{dateRange.start} to {dateRange.end}</span>
-        </div>
-
-        {loading ? (
-          <div className="text-sm text-gray-600">Loading attendance...</div>
-        ) : attendanceRows.length === 0 ? (
-          <div className="text-sm text-gray-600">No attendance records for this period.</div>
-        ) : (
-          <div className="space-y-3">
-            {attendanceRows.map((row) => (
-              <div key={row.id} className="border border-gray-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-gray-900">{row.attendance_date}</p>
-                    <p className="text-xs text-gray-600">{row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}</p>
+      {activeTab !== "manual" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Attendance Trend</h2>
+              <span className="text-xs text-gray-600">{dateRange.start} to {dateRange.end}</span>
+            </div>
+            {trendSeries.length === 0 ? (
+              <div className="text-sm text-gray-600">No attendance data for this period.</div>
+            ) : (
+              <div className="flex items-end gap-2 h-28">
+                {trendSeries.map((item) => (
+                  <div key={item.date} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full bg-gradient-to-t from-blue-500 to-indigo-500 rounded-md"
+                      style={{ height: `${Math.max(8, Math.round((item.present / maxTrendValue) * 100))}%` }}
+                      title={`${item.date} - Present: ${item.present}`}
+                    />
+                    <span className="text-[10px] text-gray-500">
+                      {item.date.slice(5)}
+                    </span>
                   </div>
-                  {activeTab === "monthly" && (
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Averages</h2>
+            <div className="space-y-3">
+              <div className="p-3 bg-blue-50 rounded-xl">
+                <p className="text-xs text-gray-600">Average Present</p>
+                <p className="text-xl font-bold text-blue-700">
+                  {attendanceTotals.records ? Math.round(attendanceTotals.present / attendanceTotals.records) : 0}
+                </p>
+              </div>
+              <div className="p-3 bg-orange-50 rounded-xl">
+                <p className="text-xs text-gray-600">Average Absent</p>
+                <p className="text-xl font-bold text-orange-700">
+                  {attendanceTotals.records ? Math.round(attendanceTotals.absent / attendanceTotals.records) : 0}
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-xl">
+                <p className="text-xs text-gray-600">Attendance Records</p>
+                <p className="text-xl font-bold text-emerald-700">{attendanceTotals.records}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab !== "manual" && monthlyBreakdown.length > 0 && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Attendance Per Month</h2>
+            <span className="text-xs text-gray-600">Totals by month</span>
+          </div>
+          <div className="space-y-3">
+            {monthlyBreakdown.map((item) => (
+              <div key={item.month} className="flex items-center gap-3">
+                <div className="w-20 text-xs text-gray-600 font-medium">{item.month}</div>
+                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                    style={{ width: `${Math.max(6, Math.round((item.present / maxMonthlyPresent) * 100))}%` }}
+                  />
+                </div>
+                <div className="w-14 text-right text-xs text-gray-700 font-semibold">{item.present}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "monthly" && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Attendance Records</h2>
+            <span className="text-sm text-gray-600">{dateRange.start} to {dateRange.end}</span>
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-gray-600">Loading attendance...</div>
+          ) : attendanceRows.length === 0 ? (
+            <div className="text-sm text-gray-600">No attendance records for this period.</div>
+          ) : (
+            <div className="space-y-3">
+              {attendanceRows.map((row) => (
+                <div key={row.id} className="border border-gray-200 rounded-xl p-4 bg-white/70">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">{row.attendance_date}</p>
+                      <p className="text-xs text-gray-600">{row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}</p>
+                    </div>
                     <button
                       onClick={() => handleSaveAttendanceRow(row.id)}
                       disabled={loading}
@@ -476,96 +637,86 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                     >
                       Save
                     </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <label className="text-xs text-gray-500">Present</label>
-                    {activeTab === "monthly" ? (
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <label className="text-xs text-gray-500">Present</label>
                       <input
                         type="number"
                         min={0}
                         value={attendanceEdits[row.id]?.present ?? row.total_members_present}
                         onChange={(e) => handleEditTotals(row.id, "present", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded"
+                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                    ) : (
-                      <p className="font-semibold text-gray-900">{row.total_members_present}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Absent</label>
-                    {activeTab === "monthly" ? (
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Absent</label>
                       <input
                         type="number"
                         min={0}
                         value={attendanceEdits[row.id]?.absent ?? row.total_members_absent}
                         onChange={(e) => handleEditTotals(row.id, "absent", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded"
+                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                    ) : (
-                      <p className="font-semibold text-gray-900">{row.total_members_absent}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Visitors</label>
-                    {activeTab === "monthly" ? (
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Visitors</label>
                       <input
                         type="number"
                         min={0}
                         value={attendanceEdits[row.id]?.visitors ?? row.total_visitors}
                         onChange={(e) => handleEditTotals(row.id, "visitors", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded"
+                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                    ) : (
-                      <p className="font-semibold text-gray-900">{row.total_visitors}</p>
-                    )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Quarterly Report</h2>
+            <span className="text-sm text-gray-600">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-sm mb-4">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-600">Total Present</p>
+              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.present}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-600">Total Absent</p>
+              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.absent}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-600">Total Visitors</p>
+              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.visitors}</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {quarterlyReportData.records.map((row) => (
+              <div key={row.id} className="border border-gray-200 rounded-xl p-3 bg-white/70">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{row.attendance_date}</p>
+                    <p className="text-xs text-gray-600">{row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}</p>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    P: {row.total_members_present} • A: {row.total_members_absent} • V: {row.total_visitors}
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Notes for Minister</h2>
-          <button
-            onClick={handleSaveNotes}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
-          >
-            Save Notes
-          </button>
         </div>
-        {members.length === 0 ? (
-          <div className="text-sm text-gray-600">No members found.</div>
-        ) : (
-          <div className="space-y-3">
-            {members.map((member) => (
-              <div key={member.id} className="border border-gray-200 rounded-lg p-3">
-                <p className="font-medium text-gray-900 mb-2">{member.name}</p>
-                <textarea
-                  value={notesByMember[member.id] || ""}
-                  onChange={(e) =>
-                    setNotesByMember((prev) => ({
-                      ...prev,
-                      [member.id]: e.target.value
-                    }))
-                  }
-                  rows={2}
-                  className="w-full px-2 py-2 border border-gray-300 rounded"
-                  placeholder="Add note for minister"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {activeTab === "quarterly" && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Quarterly Confirmation</h2>
@@ -576,7 +727,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
             <button
               onClick={handleConfirmQuarterly}
               disabled={loading || reportStatus?.status === "submitted"}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
             >
               Confirm & Send
             </button>
@@ -587,7 +738,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
       {activeTab === "manual" && (
         <div className="space-y-6">
           {/* Generate Manual Report */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Generate Manual Report</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -599,7 +750,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                   type="date"
                   value={manualDateStart}
                   onChange={(e) => setManualDateStart(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -610,7 +761,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                   type="date"
                   value={manualDateEnd}
                   onChange={(e) => setManualDateEnd(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -643,7 +794,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
             <button
               onClick={handleGenerateManualReport}
               disabled={loading}
-              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition disabled:opacity-50"
             >
               {loading ? "Generating..." : "Generate Report"}
             </button>
@@ -651,11 +802,11 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
 
           {/* Generated Report Display */}
           {generatedManualReport && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
               <h3 className="text-base font-semibold text-gray-900 mb-4">
                 Generated Report
               </h3>
-              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <div className="mb-4 p-4 bg-blue-50 rounded-xl">
                 <p className="text-sm text-blue-900">
                   <strong>Period:</strong> {generatedManualReport.dateRangeStart} to {generatedManualReport.dateRangeEnd}
                 </p>
@@ -676,7 +827,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(generatedManualReport.reportData).map(([memberId, data]) => (
+                    {Object.entries(generatedManualReport.reportData || {}).map(([memberId, data]) => (
                       <tr key={memberId} className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-2 py-2">{data.name}</td>
                         <td className="border border-gray-300 px-2 py-2 text-center">{data.absent_count}</td>
@@ -693,13 +844,13 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
 
           {/* Archive Section */}
           {manualReportArchive.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Report Archive ({manualReportArchive.length}/5)
               </h3>
               <div className="space-y-3">
                 {manualReportArchive.map((report) => (
-                  <div key={report.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div key={report.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
                         {report.dateRangeStart} to {report.dateRangeEnd}
@@ -730,6 +881,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
           )}
         </div>
       )}
+      </div>
     </div>
   );
 };

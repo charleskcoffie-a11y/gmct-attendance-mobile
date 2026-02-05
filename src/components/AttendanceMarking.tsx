@@ -7,22 +7,34 @@ interface AttendanceMarkingProps {
   classNumber: number;
   onLogout: () => void;
   onShowReports?: () => void;
+  onBackToClasses?: () => void;
+  isAdminView?: boolean;
 }
 
 interface MemberWithStatus extends Member {
   attendanceStatus?: "present" | "absent" | "sick" | "travel";
 }
 
-interface EditingMember {
+interface MemberFormData {
   id?: string;
   name: string;
+  member_number?: string;
+  address?: string;
+  city?: string;
+  province?: string;
   phoneNumber?: string;
+  date_of_birth?: string;
+  dob_day?: string;
+  dob_month?: string;
+  dob_year?: string;
 }
 
 export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   classNumber,
   onLogout,
   onShowReports,
+  onBackToClasses,
+  isAdminView,
 }) => {
   const [serviceType, setServiceType] = useState<ServiceType>("sunday");
   const [selectedDate, setSelectedDate] = useState(
@@ -34,10 +46,19 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showMemberForm, setShowMemberForm] = useState(false);
-  const [editingMember, setEditingMember] = useState<EditingMember | null>(null);
+  const [editingMember, setEditingMember] = useState<MemberFormData | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
-  const [memberFormData, setMemberFormData] = useState<EditingMember>({
+  const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
+    member_number: "",
+    address: "",
+    city: "",
+    province: "",
+    phoneNumber: "",
+    date_of_birth: "",
+    dob_day: "",
+    dob_month: "",
+    dob_year: ""
   });
   const [existingAttendance, setExistingAttendance] = useState<any>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -102,6 +123,20 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
   };
 
+  const parseDateParts = (dateStr?: string) => {
+    if (!dateStr) {
+      return { year: "", month: "", day: "" };
+    }
+    const [year, month, day] = dateStr.split("-");
+    return {
+      year: year || "",
+      month: month || "",
+      day: day || ""
+    };
+  };
+
+  const pad2 = (value: number) => String(value).padStart(2, "0");
+
   const updateMemberStatus = (memberId: string, status: string) => {
     setMembers(
       members.map((m) =>
@@ -114,20 +149,48 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   const handleAddMember = () => {
     setEditingMember(null);
-    setMemberFormData({ name: "" });
+    setMemberFormData({
+      name: "",
+      member_number: "",
+      address: "",
+      city: "",
+      province: "",
+      phoneNumber: "",
+      date_of_birth: "",
+      dob_day: "",
+      dob_month: "",
+      dob_year: ""
+    });
     setShowMemberForm(true);
   };
 
   const handleEditMember = (member: MemberWithStatus) => {
+    const dateParts = parseDateParts(member.date_of_birth);
     setEditingMember({
       id: member.id?.toString(),
       name: member.name,
-      phoneNumber: member.phone || member.phoneNumber
+      member_number: member.member_number || "",
+      address: member.address || "",
+      city: member.city || "",
+      province: member.province || "",
+      phoneNumber: member.phone || member.phoneNumber || "",
+      date_of_birth: member.date_of_birth || "",
+      dob_day: member.dob_day ? String(member.dob_day) : (dateParts.day || ""),
+      dob_month: member.dob_month ? String(member.dob_month) : (dateParts.month || ""),
+      dob_year: dateParts.year || ""
     });
     setMemberFormData({
       id: member.id?.toString(),
       name: member.name,
-      phoneNumber: member.phone || member.phoneNumber
+      member_number: member.member_number || "",
+      address: member.address || "",
+      city: member.city || "",
+      province: member.province || "",
+      phoneNumber: member.phone || member.phoneNumber || "",
+      date_of_birth: member.date_of_birth || "",
+      dob_day: member.dob_day ? String(member.dob_day) : (dateParts.day || ""),
+      dob_month: member.dob_month ? String(member.dob_month) : (dateParts.month || ""),
+      dob_year: dateParts.year || ""
     });
     setShowMemberForm(true);
   };
@@ -140,11 +203,35 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
     setLoading(true);
     try {
+      const isEditing = Boolean(editingMember?.id);
+      const currentMember = isEditing
+        ? members.find((m) => m.id?.toString() === editingMember?.id)
+        : undefined;
+
+      const existingDateParts = parseDateParts(currentMember?.date_of_birth);
+      const dobMonth = isAdminView
+        ? (memberFormData.dob_month || existingDateParts.month || "")
+        : (existingDateParts.month || memberFormData.dob_month || "");
+      const dobDay = memberFormData.dob_day || existingDateParts.day || "";
+      const dobYear = memberFormData.dob_year || existingDateParts.year || "";
+
+      const hasDob = dobYear && dobMonth && dobDay;
+      const composedDob = hasDob
+        ? `${dobYear}-${pad2(Number(dobMonth))}-${pad2(Number(dobDay))}`
+        : memberFormData.date_of_birth || currentMember?.date_of_birth;
+
       const newMember: Member = {
         id: editingMember?.id || "",
-        name: memberFormData.name,
+        name: isAdminView || !isEditing ? memberFormData.name : (currentMember?.name || memberFormData.name),
         class_number: classNumber.toString(),
-        phoneNumber: memberFormData.phoneNumber,
+        member_number: isAdminView || !isEditing ? memberFormData.member_number : currentMember?.member_number,
+        address: memberFormData.address || currentMember?.address,
+        city: isAdminView || !isEditing ? memberFormData.city : currentMember?.city,
+        province: isAdminView || !isEditing ? memberFormData.province : currentMember?.province,
+        phoneNumber: isAdminView || !isEditing ? memberFormData.phoneNumber : (currentMember?.phone || currentMember?.phoneNumber),
+        date_of_birth: composedDob,
+        dob_month: dobMonth ? Number(dobMonth) : currentMember?.dob_month,
+        dob_day: dobDay ? Number(dobDay) : currentMember?.dob_day
       };
 
       await saveMember(newMember);
@@ -152,7 +239,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         editingMember ? "Member updated successfully" : "Member added successfully"
       );
       setShowMemberForm(false);
-      setMemberFormData({ name: "" });
+      setMemberFormData({
+        name: "",
+        member_number: "",
+        address: "",
+        city: "",
+        province: "",
+        phoneNumber: "",
+        date_of_birth: "",
+        dob_day: "",
+        dob_month: "",
+        dob_year: ""
+      });
       await loadMembers();
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -281,6 +379,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     );
   });
 
+  const isEditing = Boolean(editingMember?.id);
+  const restrictFields = !isAdminView && isEditing;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -295,6 +396,14 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               <Wifi className="w-5 h-5 text-green-300" />
             ) : (
               <WifiOff className="w-5 h-5 text-yellow-300" />
+            )}
+            {onBackToClasses && (
+              <button
+                onClick={onBackToClasses}
+                className="px-3 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition"
+              >
+                Back to Classes
+              </button>
             )}
             {onShowReports && (
               <button
@@ -384,6 +493,16 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
       {/* Content */}
       <div className="p-4">
+        {onShowReports && (
+          <div className="mb-4">
+            <button
+              onClick={onShowReports}
+              className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition shadow-md"
+            >
+              Open Class Reports
+            </button>
+          </div>
+        )}
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
           <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-blue-500">
@@ -438,10 +557,27 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                       onChange={(e) =>
                         setMemberFormData({ ...memberFormData, name: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={restrictFields}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                       placeholder="Member name"
                     />
                   </div>
+                  {isAdminView && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Member Number
+                      </label>
+                      <input
+                        type="text"
+                        value={memberFormData.member_number || ""}
+                        onChange={(e) =>
+                          setMemberFormData({ ...memberFormData, member_number: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Member number"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Phone
@@ -455,10 +591,115 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                           phoneNumber: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={restrictFields}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                       placeholder="Phone number"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      value={memberFormData.address || ""}
+                      onChange={(e) =>
+                        setMemberFormData({ ...memberFormData, address: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Address"
+                    />
+                  </div>
+                  {isAdminView && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={memberFormData.city || ""}
+                          onChange={(e) =>
+                            setMemberFormData({ ...memberFormData, city: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="City"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Province
+                        </label>
+                        <input
+                          type="text"
+                          value={memberFormData.province || ""}
+                          onChange={(e) =>
+                            setMemberFormData({ ...memberFormData, province: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Province"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {isAdminView ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        value={memberFormData.date_of_birth || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const parts = parseDateParts(value);
+                          setMemberFormData({
+                            ...memberFormData,
+                            date_of_birth: value,
+                            dob_year: parts.year,
+                            dob_month: parts.month,
+                            dob_day: parts.day
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Birth Day
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          value={memberFormData.dob_day || ""}
+                          onChange={(e) =>
+                            setMemberFormData({ ...memberFormData, dob_day: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Day"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Birth Year
+                        </label>
+                        <input
+                          type="number"
+                          min={1900}
+                          max={new Date().getFullYear()}
+                          value={memberFormData.dob_year || ""}
+                          onChange={(e) =>
+                            setMemberFormData({ ...memberFormData, dob_year: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Year"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div className="flex gap-3 pt-4">
                     <button
                       onClick={handleSaveMember}
@@ -470,7 +711,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     <button
                       onClick={() => {
                         setShowMemberForm(false);
-                        setMemberFormData({ name: "" });
+                        setMemberFormData({
+                          name: "",
+                          member_number: "",
+                          address: "",
+                          city: "",
+                          province: "",
+                          phoneNumber: "",
+                          date_of_birth: "",
+                          dob_day: "",
+                          dob_month: "",
+                          dob_year: ""
+                        });
                         setEditingMember(null);
                       }}
                       className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg font-medium transition"
