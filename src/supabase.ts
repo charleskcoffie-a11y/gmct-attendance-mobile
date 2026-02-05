@@ -221,12 +221,9 @@ export async function saveAttendance(
 export async function getClassAttendanceHistory(classNumber: number, limit = 10) {
   const { data, error } = await supabase
     .from('attendance')
-    .select(`
-      *,
-      members!inner(name, class_number)
-    `)
-    .eq('members.class_number', classNumber.toString())
-    .order('date', { ascending: false })
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .order('attendance_date', { ascending: false })
     .limit(limit);
   
   if (error) {

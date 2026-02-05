@@ -480,8 +480,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     <h4 className="font-semibold text-gray-900">
                       {member.name}
                     </h4>
-                    {member.phoneNumber && (
-                      <p className="text-sm text-gray-600">{member.phoneNumber}</p>
+                    {(member.phone || member.phoneNumber) && (
+                      <p className="text-sm text-gray-600">{member.phone || member.phoneNumber}</p>
                     )}
                   </div>
                   <div className="flex gap-2">
