@@ -34,6 +34,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [editingMember, setEditingMember] = useState<EditingMember | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [memberClassFilter, setMemberClassFilter] = useState("all");
   const [memberFormData, setMemberFormData] = useState<EditingMember>({
     name: "",
   });
@@ -221,18 +222,33 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     return (a.name || "").localeCompare(b.name || "");
   });
 
-  const filteredMembers = normalizedSearch
-    ? sortedMembers.filter((m) => {
-        const name = m.name?.toLowerCase() || "";
-        const phone = (m.phone || m.phoneNumber || "").toLowerCase();
-        const memberNumber = (m.member_number || "").toLowerCase();
-        return (
-          name.includes(normalizedSearch) ||
-          phone.includes(normalizedSearch) ||
-          memberNumber.includes(normalizedSearch)
-        );
-      })
-    : sortedMembers;
+  const classOptions = Array.from(
+    new Set(
+      sortedMembers
+        .map((m) => m.class_number || (m.assignedClass ? String(m.assignedClass) : ""))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const filteredMembers = sortedMembers.filter((m) => {
+    const classValue = m.class_number || (m.assignedClass ? String(m.assignedClass) : "");
+    if (memberClassFilter !== "all" && classValue !== memberClassFilter) {
+      return false;
+    }
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const name = m.name?.toLowerCase() || "";
+    const phone = (m.phone || m.phoneNumber || "").toLowerCase();
+    const memberNumber = (m.member_number || "").toLowerCase();
+    return (
+      name.includes(normalizedSearch) ||
+      phone.includes(normalizedSearch) ||
+      memberNumber.includes(normalizedSearch)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -334,15 +350,27 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-4">
+        {/* Search + Class Filter */}
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <input
             type="text"
             value={memberSearch}
             onChange={(e) => setMemberSearch(e.target.value)}
             placeholder="Search by name, phone, or member number"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 sm:col-span-2"
           />
+          <select
+            value={memberClassFilter}
+            onChange={(e) => setMemberClassFilter(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All classes</option>
+            {classOptions.map((classValue) => (
+              <option key={classValue} value={classValue}>
+                Class {classValue}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Member Editor Modal */}
