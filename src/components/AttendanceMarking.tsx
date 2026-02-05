@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
-import { getClassMembers, saveMember, deleteMember, saveAttendance } from "../supabase";
+import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService } from "../supabase";
 import { Member, ServiceType } from "../types";
-import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle } from "lucide-react";
+import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle } from "lucide-react";
 
 interface AttendanceMarkingProps {
   classNumber: number;
@@ -37,6 +37,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [memberFormData, setMemberFormData] = useState<EditingMember>({
     name: "",
   });
+  const [existingAttendance, setExistingAttendance] = useState<any>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   useEffect(() => {
     loadMembers();
@@ -50,6 +52,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       window.removeEventListener("offline", handleOffline);
     };
   }, [classNumber]);
+
+  // Load attendance for the selected date and service type
+  useEffect(() => {
+    loadAttendanceRecord();
+  }, [selectedDate, serviceType]);
 
   const loadMembers = async () => {
     setLoading(true);
@@ -68,6 +75,28 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAttendanceRecord = async () => {
+    setAttendanceLoading(true);
+    try {
+      const record = await getAttendanceByDateAndService(classNumber, selectedDate, serviceType);
+      setExistingAttendance(record);
+      
+      if (record) {
+        // Update member statuses based on existing attendance
+        setMembers(members =>
+          members.map(m => ({
+            ...m,
+            attendanceStatus: "absent" as const, // Default to absent since we don't track individual statuses
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Error loading attendance:', err);
+    } finally {
+      setAttendanceLoading(false);
     }
   };
 
@@ -306,6 +335,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         {!isOnline && (
           <div className="p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-sm">
             You are currently offline. Data will be synced when connection is restored.
+          </div>
+        )}
+
+        {/* Existing Attendance Status */}
+        {existingAttendance && !attendanceLoading && (
+          <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-blue-800 text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <div>
+              <strong>Attendance Already Marked</strong> for {selectedDate} ({serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'})
+              <br />
+              Present: {existingAttendance.total_members_present}, Absent: {existingAttendance.total_members_absent}
+            </div>
           </div>
         )}
       </div>

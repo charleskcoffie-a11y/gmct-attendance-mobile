@@ -198,6 +198,29 @@ export async function saveAttendance(
   return attendanceData;
 }
 
+// Get attendance for a specific class on a specific date and service type
+export async function getAttendanceByDateAndService(
+  classNumber: number,
+  date: string,
+  serviceType: 'sunday' | 'bible-study'
+) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .eq('attendance_date', date)
+    .eq('service_type', serviceType)
+    .limit(1)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error fetching attendance record:', error);
+    return null;
+  }
+  
+  return data;
+}
+
 // Get attendance history for a class
 export async function getClassAttendanceHistory(classNumber: number, limit = 10) {
   const { data, error } = await supabase
