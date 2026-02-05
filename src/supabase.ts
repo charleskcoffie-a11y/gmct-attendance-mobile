@@ -173,14 +173,14 @@ export async function saveAttendance(
   const totalMembersPresent = memberRecords.filter(r => r.status === 'present').length;
   const totalMembersAbsent = memberRecords.filter(r => r.status === 'absent').length;
   
-  // Step 1: Upsert attendance summary record
+  // Upsert attendance summary record
   const { data: attendanceData, error: attendanceError } = await supabase
     .from('attendance')
     .upsert({
       class_number: classNumber.toString(),
       attendance_date: date,
       service_type: serviceType,
-      class_leader_name: classLeaderName,
+      class_leader_name: classLeaderName || `Class ${classNumber} Leader`,
       total_members_present: totalMembersPresent,
       total_members_absent: totalMembersAbsent,
       total_visitors: 0,
@@ -193,25 +193,6 @@ export async function saveAttendance(
   if (attendanceError) {
     console.error('Error saving attendance summary:', attendanceError);
     throw attendanceError;
-  }
-  
-  // Step 2: Upsert member attendance records
-  const memberAttendanceRecords = memberRecords.map(r => ({
-    attendance_id: attendanceData.id,
-    member_id: r.memberId.toString(),
-    class_number: classNumber.toString(),
-    status: r.status,
-  }));
-  
-  const { error: memberError } = await supabase
-    .from('member_attendance')
-    .upsert(memberAttendanceRecords, { 
-      onConflict: 'attendance_id,member_id' 
-    });
-  
-  if (memberError) {
-    console.error('Error saving member attendance:', memberError);
-    throw memberError;
   }
   
   return attendanceData;
