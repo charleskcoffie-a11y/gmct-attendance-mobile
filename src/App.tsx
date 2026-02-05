@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import AttendanceMarking from './components/AttendanceMarking';
+import AdminAttendanceView from './components/AdminAttendanceView';
 import AdminSettings from './components/AdminSettings';
 import SyncManager from './components/SyncManager';
 import { ClassSession } from './types';
@@ -65,7 +66,7 @@ function App() {
               <div className="flex-1 overflow-y-auto bg-gray-50 pb-20">
                 {adminView === 'attendance' ? (
                   <div className="pb-4">
-                    <AttendanceMarking classNumber={1} onLogout={handleLogout} />
+                    <AdminAttendanceView onLogout={handleLogout} />
                     <SyncManager />
                   </div>
                 ) : (
