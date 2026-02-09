@@ -8,10 +8,12 @@ import {
   updateAttendanceTotals,
   saveManualReport,
   getManualReports,
-  deleteManualReport
+  deleteManualReport,
+  getMemberAttendanceHistory,
+  getMemberAttendanceSummary
 } from "../supabase";
 import { Member, ServiceType, ManualReport } from "../types";
-import { AlertCircle, CheckCircle, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Trash2, TrendingUp, Users, Calendar, BarChart3, Send, Download, User } from "lucide-react";
 
 interface ClassReportsProps {
   classNumber: number;
@@ -37,7 +39,7 @@ interface QuarterlyReportSummary {
 }
 
 export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack, onBackToClasses }) => {
-  const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual">("monthly");
+  const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual" | "members">("monthly");
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [quarter, setQuarter] = useState<1 | 2 | 3 | 4>(() => {
@@ -65,6 +67,18 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
   const [selectedAbsenceTypes, setSelectedAbsenceTypes] = useState<('absent' | 'sick' | 'travel')[]>(['absent']);
   const [generatedManualReport, setGeneratedManualReport] = useState<ManualReport | null>(null);
   const [manualReportArchive, setManualReportArchive] = useState<ManualReport[]>([]);
+
+  // Member report states
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
+  const [memberServiceType, setMemberServiceType] = useState<'sunday' | 'bible-study' | 'both'>('both');
+  const [memberStartDate, setMemberStartDate] = useState(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    return firstDay.toISOString().split("T")[0];
+  });
+  const [memberEndDate, setMemberEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [memberAttendanceHistory, setMemberAttendanceHistory] = useState<any[]>([]);
+  const [memberSummary, setMemberSummary] = useState<any>(null);
 
   const periodKey = useMemo(() => {
     if (activeTab === "monthly") {
@@ -163,6 +177,12 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
     }
   }, [activeTab, classNumber]);
 
+  useEffect(() => {
+    if (activeTab === "members" && selectedMemberId) {
+      loadMemberAttendance();
+    }
+  }, [activeTab, selectedMemberId, memberServiceType, memberStartDate, memberEndDate, classNumber]);
+
   const loadMembers = async () => {
     try {
       const data = await getClassMembers(classNumber);
@@ -216,6 +236,40 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
       setManualReportArchive(reports);
     } catch (err) {
       console.error("Error loading manual reports:", err);
+    }
+  };
+
+  const loadMemberAttendance = async () => {
+    if (!selectedMemberId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const startDate = memberStartDate;
+      const endDate = memberEndDate;
+      const serviceFilter = memberServiceType === 'both' ? undefined : memberServiceType;
+      
+      const history = await getMemberAttendanceHistory(
+        classNumber,
+        selectedMemberId,
+        startDate,
+        endDate,
+        serviceFilter
+      );
+      setMemberAttendanceHistory(history || []);
+
+      const summary = await getMemberAttendanceSummary(
+        classNumber,
+        selectedMemberId,
+        startDate,
+        endDate,
+        serviceFilter
+      );
+      setMemberSummary(summary);
+    } catch (err) {
+      setError("Failed to load member attendance");
+      console.error("Error loading member attendance:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -418,469 +472,759 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Class Reports
-            </h1>
-            <p className="text-sm text-gray-600">Class {classNumber}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {onBackToClasses && (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <h1 className="text-4xl font-bold text-white">Class Reports</h1>
+              </div>
+              <p className="text-slate-400 ml-12">Class {classNumber} • Attendance Analytics & Reports</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {onBackToClasses && (
+                <button
+                  onClick={onBackToClasses}
+                  className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-medium transition-all shadow-lg"
+                >
+                  Back to Classes
+                </button>
+              )}
               <button
-                onClick={onBackToClasses}
-                className="px-5 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition-all shadow-md border border-gray-200"
+                onClick={onBack}
+                className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-medium transition-all shadow-lg"
               >
-                Back to Classes
+                Back
               </button>
-            )}
-            <button
-              onClick={onBack}
-              className="px-5 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition-all shadow-md border border-gray-200"
-            >
-              Back to Attendance
-            </button>
+            </div>
           </div>
         </div>
 
-        <div className="mb-6 flex flex-wrap gap-2">
+        {/* Tab Navigation */}
+        <div className="mb-6 flex flex-wrap gap-3 bg-slate-800/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-700/50 w-fit">
           <button
             onClick={() => setActiveTab("monthly")}
-            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "monthly" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+              activeTab === "monthly"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
           >
-            Monthly
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Monthly
+            </div>
           </button>
           <button
             onClick={() => setActiveTab("quarterly")}
-            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "quarterly" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+              activeTab === "quarterly"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
           >
-            Quarterly
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Quarterly
+            </div>
           </button>
           <button
             onClick={() => setActiveTab("manual")}
-            className={`px-5 py-2 rounded-xl font-semibold transition ${activeTab === "manual" ? "bg-blue-600 text-white shadow-md" : "bg-white text-gray-700 border border-gray-200"}`}
+            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+              activeTab === "manual"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
           >
-            Manual Reports
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Manual Reports
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("members")}
+            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+              activeTab === "members"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Member Reports
+            </div>
           </button>
         </div>
 
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
-        {activeTab === "monthly" ? (
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-medium text-gray-700">Select Month</label>
-            <input
-              type="month"
-              value={monthKey}
-              onChange={(e) => setMonthKey(e.target.value)}
-              className="max-w-xs px-3 py-2 border border-gray-300 rounded-lg"
-            />
+        {/* Alerts */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-950/50 border border-red-700/50 rounded-xl text-red-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
-        ) : activeTab === "quarterly" ? (
-          <div className="flex flex-col gap-4">
-            <label className="text-sm font-medium text-gray-700">Select Quarter</label>
-            <div className="flex flex-wrap gap-3">
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                {[year - 1, year, year + 1].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <select
-                value={quarter}
-                onChange={(e) => setQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
-                className="px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value={1}>Q1</option>
-                <option value={2}>Q2</option>
-                <option value={3}>Q3</option>
-                <option value={4}>Q4</option>
-              </select>
-              <button
-                onClick={handleGenerateQuarterlyReport}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-md"
-              >
-                Generate Quarterly Report
-              </button>
+        )}
+        {success && (
+          <div className="mb-4 p-4 bg-emerald-950/50 border border-emerald-700/50 rounded-xl text-emerald-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{success}</span>
+          </div>
+        )}
+
+        {/* Period Selector */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+          {activeTab === "monthly" ? (
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-semibold text-slate-300">Select Month</label>
+              <input
+                type="month"
+                value={monthKey}
+                onChange={(e) => setMonthKey(e.target.value)}
+                className="max-w-xs px-4 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-            {quarterlyReportData && !showQuarterlyReport && (
-              <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm">
-                <span className="text-indigo-800 font-medium">Report ready for {quarterlyReportData.periodKey}.</span>
-                <button
-                  onClick={() => setShowQuarterlyReport(true)}
-                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition"
+          ) : activeTab === "quarterly" ? (
+            <div className="flex flex-col gap-4">
+              <label className="text-sm font-semibold text-slate-300">Select Quarter</label>
+              <div className="flex flex-wrap gap-3">
+                <select
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                  className="px-4 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  Open Report
+                  {[year - 1, year, year + 1].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <select
+                  value={quarter}
+                  onChange={(e) => setQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                  className="px-4 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={1}>Q1 (Jan-Mar)</option>
+                  <option value={2}>Q2 (Apr-Jun)</option>
+                  <option value={3}>Q3 (Jul-Sep)</option>
+                  <option value={4}>Q4 (Oct-Dec)</option>
+                </select>
+                <button
+                  onClick={handleGenerateQuarterlyReport}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg"
+                >
+                  Generate Report
                 </button>
               </div>
-            )}
+              {quarterlyReportData && !showQuarterlyReport && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-emerald-950/50 border border-emerald-700/50 rounded-xl text-sm">
+                  <span className="text-emerald-300 font-medium">✓ Report ready for {quarterlyReportData.periodKey}</span>
+                  <button
+                    onClick={() => setShowQuarterlyReport(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-all"
+                  >
+                    Open Report
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-slate-400">Configure your manual report below</p>
+          )}
+        </div>
+
+        {/* Analytics Cards */}
+        {activeTab !== "manual" && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Presence Metrics */}
+            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-blue-600/30 rounded-lg">
+                  <Users className="w-4 h-4 text-blue-300" />
+                </div>
+                <h3 className="text-xs font-semibold text-slate-300">Avg Present</h3>
+              </div>
+              <div className="text-2xl font-bold text-blue-300">
+                {attendanceTotals.records ? Math.round(attendanceTotals.present / attendanceTotals.records) : 0}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Over {attendanceTotals.records} records</p>
+            </div>
+
+            {/* Absence Metrics */}
+            <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-sm rounded-2xl border border-orange-500/30 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-orange-600/30 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-orange-300" />
+                </div>
+                <h3 className="text-xs font-semibold text-slate-300">Avg Absent</h3>
+              </div>
+              <div className="text-2xl font-bold text-orange-300">
+                {attendanceTotals.records ? Math.round(attendanceTotals.absent / attendanceTotals.records) : 0}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Over {attendanceTotals.records} records</p>
+            </div>
+
+            {/* Visitors Metrics */}
+            <div className="bg-gradient-to-br from-emerald-600/20 to-teal-600/20 backdrop-blur-sm rounded-2xl border border-emerald-500/30 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-emerald-600/30 rounded-lg">
+                  <TrendingUp className="w-4 h-4 text-emerald-300" />
+                </div>
+                <h3 className="text-xs font-semibold text-slate-300">Total Visitors</h3>
+              </div>
+              <div className="text-2xl font-bold text-emerald-300">{attendanceTotals.visitors}</div>
+              <p className="text-xs text-slate-400 mt-1">Recorded visitors</p>
+            </div>
+
+            {/* Members Travelled */}
+            <div className="bg-gradient-to-br from-violet-600/20 to-purple-600/20 backdrop-blur-sm rounded-2xl border border-violet-500/30 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-violet-600/30 rounded-lg">
+                  <Calendar className="w-4 h-4 text-violet-300" />
+                </div>
+                <h3 className="text-xs font-semibold text-slate-300">Travelled</h3>
+              </div>
+              <div className="text-2xl font-bold text-violet-300">—</div>
+              <p className="text-xs text-slate-400 mt-1">From manual reports</p>
+            </div>
           </div>
-        ) : (
-          <div className="text-sm text-gray-600">Configure your manual report below.</div>
         )}
-      </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-700 text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" />
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg text-green-700 text-sm flex items-center gap-2">
-          <CheckCircle className="w-4 h-4" />
-          {success}
-        </div>
-      )}
-
-      {activeTab !== "manual" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Attendance Trend</h2>
-              <span className="text-xs text-gray-600">{dateRange.start} to {dateRange.end}</span>
+        {/* Attendance Trend Chart */}
+        {activeTab !== "manual" && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-white">Attendance Trend</h2>
+              <span className="text-xs text-slate-400">{dateRange.start} to {dateRange.end}</span>
             </div>
             {trendSeries.length === 0 ? (
-              <div className="text-sm text-gray-600">No attendance data for this period.</div>
+              <div className="text-sm text-slate-400 py-8 text-center">No data to display</div>
             ) : (
-              <div className="flex items-end gap-2 h-28">
-                {trendSeries.map((item) => (
-                  <div key={item.date} className="flex-1 flex flex-col items-center gap-1">
+              <div className="space-y-4">
+                <div className="flex items-end justify-between gap-2 h-40 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
+                  {trendSeries.map((item) => {
+                    const heightPercent = (item.present / maxTrendValue) * 100;
+                    return (
+                      <div key={item.date} className="flex-1 flex flex-col items-center gap-2 group h-full">
+                        <div className="h-full flex items-end justify-center w-full">
+                          <div
+                            className="w-3/4 bg-gradient-to-t from-blue-500 to-blue-300 rounded-t transition-all group-hover:from-blue-400 group-hover:to-blue-200 cursor-pointer"
+                            style={{ height: `${heightPercent}%`, minHeight: heightPercent > 0 ? '4px' : '0px' }}
+                            title={`${item.date} - Present: ${item.present}, Absent: ${item.absent}`}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-medium">
+                          {item.date.slice(8)}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-semibold">{item.present}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="p-3 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
+                    <p className="text-slate-400 text-[10px] mb-1">Records</p>
+                    <span className="font-semibold text-sm">{trendSeries.length}</span>
+                  </div>
+                  <div className="p-3 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
+                    <p className="text-slate-400 text-[10px] mb-1">Max Present</p>
+                    <span className="font-semibold text-sm">{Math.max(0, ...trendSeries.map(x => x.present))}</span>
+                  </div>
+                  <div className="p-3 bg-orange-500/20 rounded-lg border border-orange-500/30 text-orange-300">
+                    <p className="text-slate-400 text-[10px] mb-1">Min Present</p>
+                    <span className="font-semibold text-sm">{Math.min(...trendSeries.map(x => x.present))}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Monthly Breakdown */}
+        {activeTab !== "manual" && monthlyBreakdown.length > 0 && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+            <h2 className="text-lg font-bold text-white mb-6">Monthly Breakdown</h2>
+            <div className="space-y-4">
+              {monthlyBreakdown.map((item) => (
+                <div key={item.month} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-semibold text-slate-300">{item.month}</span>
+                    <div className="flex gap-4 text-xs text-slate-400">
+                      <span>Present: <span className="font-semibold text-blue-300">{item.present}</span></span>
+                      <span>Absent: <span className="font-semibold text-orange-300">{item.absent}</span></span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
                     <div
-                      className="w-full bg-gradient-to-t from-blue-500 to-indigo-500 rounded-md"
-                      style={{ height: `${Math.max(8, Math.round((item.present / maxTrendValue) * 100))}%` }}
-                      title={`${item.date} - Present: ${item.present}`}
+                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                      style={{ width: `${Math.max(6, Math.round((item.present / maxMonthlyPresent) * 100))}%` }}
                     />
-                    <span className="text-[10px] text-gray-500">
-                      {item.date.slice(5)}
-                    </span>
+                    {item.absent > 0 && (
+                      <div
+                        className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full"
+                        style={{ width: `${Math.max(3, Math.round((item.absent / maxMonthlyPresent) * 100))}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Monthly Attendance Records */}
+        {activeTab === "monthly" && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-white">Attendance Records</h2>
+              <span className="text-xs text-slate-400">{dateRange.start} to {dateRange.end}</span>
+            </div>
+
+            {loading ? (
+              <div className="text-sm text-slate-400 py-8 text-center">Loading attendance...</div>
+            ) : attendanceRows.length === 0 ? (
+              <div className="text-sm text-slate-400 py-8 text-center">No attendance records for this period</div>
+            ) : (
+              <div className="space-y-3">
+                {attendanceRows.map((row) => (
+                  <div key={row.id} className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-5 transition-all hover:bg-slate-700/50">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <p className="font-semibold text-white">{row.attendance_date}</p>
+                        <p className="text-xs text-slate-400">
+                          {row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleSaveAttendanceRow(row.id)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-blue-600/20 border border-blue-500/30 rounded-lg p-3">
+                        <label className="text-xs text-slate-400 font-medium block mb-2">Present</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={attendanceEdits[row.id]?.present ?? row.total_members_present}
+                          onChange={(e) => handleEditTotals(row.id, "present", e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-700 border border-blue-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
+                        />
+                      </div>
+                      <div className="bg-orange-600/20 border border-orange-500/30 rounded-lg p-3">
+                        <label className="text-xs text-slate-400 font-medium block mb-2">Absent</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={attendanceEdits[row.id]?.absent ?? row.total_members_absent}
+                          onChange={(e) => handleEditTotals(row.id, "absent", e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-700 border border-orange-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm font-semibold"
+                        />
+                      </div>
+                      <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-lg p-3">
+                        <label className="text-xs text-slate-400 font-medium block mb-2">Visitors</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={attendanceEdits[row.id]?.visitors ?? row.total_visitors}
+                          onChange={(e) => handleEditTotals(row.id, "visitors", e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-700 border border-emerald-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Averages</h2>
-            <div className="space-y-3">
-              <div className="p-3 bg-blue-50 rounded-xl">
-                <p className="text-xs text-gray-600">Average Present</p>
-                <p className="text-xl font-bold text-blue-700">
-                  {attendanceTotals.records ? Math.round(attendanceTotals.present / attendanceTotals.records) : 0}
-                </p>
+        )}
+
+        {/* Quarterly Report Display */}
+        {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-white">Quarterly Report</h2>
+              <span className="text-xs text-slate-400">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+            </div>
+            
+            {/* Summary Cards */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                <p className="text-xs text-slate-400 font-medium mb-2">Total Present</p>
+                <p className="text-2xl font-bold text-blue-300">{quarterlyReportData.totals.present}</p>
               </div>
-              <div className="p-3 bg-orange-50 rounded-xl">
-                <p className="text-xs text-gray-600">Average Absent</p>
-                <p className="text-xl font-bold text-orange-700">
-                  {attendanceTotals.records ? Math.round(attendanceTotals.absent / attendanceTotals.records) : 0}
-                </p>
+              <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
+                <p className="text-xs text-slate-400 font-medium mb-2">Total Absent</p>
+                <p className="text-2xl font-bold text-orange-300">{quarterlyReportData.totals.absent}</p>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-xl">
-                <p className="text-xs text-gray-600">Attendance Records</p>
-                <p className="text-xl font-bold text-emerald-700">{attendanceTotals.records}</p>
+              <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-xl p-4">
+                <p className="text-xs text-slate-400 font-medium mb-2">Total Visitors</p>
+                <p className="text-2xl font-bold text-emerald-300">{quarterlyReportData.totals.visitors}</p>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {activeTab !== "manual" && monthlyBreakdown.length > 0 && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Attendance Per Month</h2>
-            <span className="text-xs text-gray-600">Totals by month</span>
-          </div>
-          <div className="space-y-3">
-            {monthlyBreakdown.map((item) => (
-              <div key={item.month} className="flex items-center gap-3">
-                <div className="w-20 text-xs text-gray-600 font-medium">{item.month}</div>
-                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                    style={{ width: `${Math.max(6, Math.round((item.present / maxMonthlyPresent) * 100))}%` }}
-                  />
-                </div>
-                <div className="w-14 text-right text-xs text-gray-700 font-semibold">{item.present}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "monthly" && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Attendance Records</h2>
-            <span className="text-sm text-gray-600">{dateRange.start} to {dateRange.end}</span>
-          </div>
-
-          {loading ? (
-            <div className="text-sm text-gray-600">Loading attendance...</div>
-          ) : attendanceRows.length === 0 ? (
-            <div className="text-sm text-gray-600">No attendance records for this period.</div>
-          ) : (
-            <div className="space-y-3">
-              {attendanceRows.map((row) => (
-                <div key={row.id} className="border border-gray-200 rounded-xl p-4 bg-white/70">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="font-medium text-gray-900">{row.attendance_date}</p>
-                      <p className="text-xs text-gray-600">{row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}</p>
-                    </div>
-                    <button
-                      onClick={() => handleSaveAttendanceRow(row.id)}
-                      disabled={loading}
-                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition disabled:opacity-50"
-                    >
-                      Save
-                    </button>
+            {/* Detailed Records */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Details</h3>
+              {quarterlyReportData.records.map((row) => (
+                <div key={row.id} className="bg-slate-700/30 border border-slate-600/50 rounded-lg p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-white">{row.attendance_date}</p>
+                    <p className="text-xs text-slate-400">
+                      {row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}
+                    </p>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 text-sm">
-                    <div>
-                      <label className="text-xs text-gray-500">Present</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={attendanceEdits[row.id]?.present ?? row.total_members_present}
-                        onChange={(e) => handleEditTotals(row.id, "present", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                  <div className="flex gap-6 text-sm">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">Present</p>
+                      <p className="font-bold text-blue-300">{row.total_members_present}</p>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-500">Absent</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={attendanceEdits[row.id]?.absent ?? row.total_members_absent}
-                        onChange={(e) => handleEditTotals(row.id, "absent", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">Absent</p>
+                      <p className="font-bold text-orange-300">{row.total_members_absent}</p>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-500">Visitors</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={attendanceEdits[row.id]?.visitors ?? row.total_visitors}
-                        onChange={(e) => handleEditTotals(row.id, "visitors", e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">Visitors</p>
+                      <p className="font-bold text-emerald-300">{row.total_visitors}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Quarterly Report</h2>
-            <span className="text-sm text-gray-600">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+        {/* Quarterly Confirmation */}
+        {activeTab === "quarterly" && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-1">Submit Quarterly Report</h2>
+                <p className="text-sm text-slate-400">
+                  {reportStatus?.status === "submitted" 
+                    ? "✓ Report has been submitted" 
+                    : "Ready to submit this quarter's report"}
+                </p>
+              </div>
+              <button
+                onClick={handleConfirmQuarterly}
+                disabled={loading || reportStatus?.status === "submitted"}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 shadow-lg"
+              >
+                <Send className="w-4 h-4" />
+                {reportStatus?.status === "submitted" ? "Submitted" : "Submit"}
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-sm mb-4">
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-600">Total Present</p>
-              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.present}</p>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-600">Total Absent</p>
-              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.absent}</p>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-600">Total Visitors</p>
-              <p className="text-lg font-semibold text-gray-900">{quarterlyReportData.totals.visitors}</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {quarterlyReportData.records.map((row) => (
-              <div key={row.id} className="border border-gray-200 rounded-xl p-3 bg-white/70">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{row.attendance_date}</p>
-                    <p className="text-xs text-gray-600">{row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}</p>
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    P: {row.total_members_present} • A: {row.total_members_absent} • V: {row.total_visitors}
-                  </div>
+        )}
+
+        {/* Manual Reports Section */}
+        {activeTab === "manual" && (
+          <div className="space-y-6">
+            {/* Generate Manual Report */}
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+              <h2 className="text-lg font-semibold text-white mb-6">Generate Manual Report</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={manualDateStart}
+                    onChange={(e) => setManualDateStart(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={manualDateEnd}
+                    onChange={(e) => setManualDateEnd(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {activeTab === "quarterly" && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Quarterly Confirmation</h2>
-              <p className="text-sm text-gray-600">
-                {reportStatus?.status === "submitted" ? "Submitted" : "Not submitted"}
-              </p>
-            </div>
-            <button
-              onClick={handleConfirmQuarterly}
-              disabled={loading || reportStatus?.status === "submitted"}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
-            >
-              Confirm & Send
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "manual" && (
-        <div className="space-y-6">
-          {/* Generate Manual Report */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Generate Manual Report</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Start Date
+              <div className="mb-6 p-4 bg-slate-700/30 border border-slate-600/50 rounded-xl">
+                <label className="block text-sm font-semibold text-slate-300 mb-4">
+                  Absence Types
                 </label>
-                <input
-                  type="date"
-                  value={manualDateStart}
-                  onChange={(e) => setManualDateStart(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="space-y-3">
+                  {(['absent', 'sick', 'travel'] as const).map((type) => (
+                    <label key={type} className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        checked={selectedAbsenceTypes.includes(type)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAbsenceTypes([...selectedAbsenceTypes, type]);
+                          } else {
+                            setSelectedAbsenceTypes(selectedAbsenceTypes.filter(t => t !== type));
+                          }
+                        }}
+                        className="w-5 h-5 rounded border-slate-500 bg-slate-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-slate-300 capitalize">{type}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  value={manualDateEnd}
-                  onChange={(e) => setManualDateEnd(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+
+              <button
+                onClick={handleGenerateManualReport}
+                disabled={loading}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 shadow-lg"
+              >
+                {loading ? "Generating..." : "Generate Report"}
+              </button>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Absence Types to Include
-              </label>
-              <div className="space-y-2">
-                {(['absent', 'sick', 'travel'] as const).map((type) => (
-                  <label key={type} className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedAbsenceTypes.includes(type)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedAbsenceTypes([...selectedAbsenceTypes, type]);
-                        } else {
-                          setSelectedAbsenceTypes(selectedAbsenceTypes.filter(t => t !== type));
-                        }
-                      }}
-                      className="w-4 h-4 border border-gray-300 rounded"
-                    />
-                    <span className="text-sm text-gray-700 capitalize">{type}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={handleGenerateManualReport}
-              disabled={loading}
-              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition disabled:opacity-50"
-            >
-              {loading ? "Generating..." : "Generate Report"}
-            </button>
-          </div>
-
-          {/* Generated Report Display */}
-          {generatedManualReport && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
-                Generated Report
-              </h3>
-              <div className="mb-4 p-4 bg-blue-50 rounded-xl">
-                <p className="text-sm text-blue-900">
-                  <strong>Period:</strong> {generatedManualReport.dateRangeStart} to {generatedManualReport.dateRangeEnd}
-                </p>
-                <p className="text-sm text-blue-900">
-                  <strong>Absence Types:</strong> {generatedManualReport.absenceTypes.join(', ')}
-                </p>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-2 py-2 text-left">Member Name</th>
-                      <th className="border border-gray-300 px-2 py-2 text-center">Absences</th>
-                      <th className="border border-gray-300 px-2 py-2 text-center">Sick</th>
-                      <th className="border border-gray-300 px-2 py-2 text-center">Travel</th>
-                      <th className="border border-gray-300 px-2 py-2 text-center">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(generatedManualReport.reportData || {}).map(([memberId, data]) => (
-                      <tr key={memberId} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-2 py-2">{data.name}</td>
-                        <td className="border border-gray-300 px-2 py-2 text-center">{data.absent_count}</td>
-                        <td className="border border-gray-300 px-2 py-2 text-center">{data.sick_count}</td>
-                        <td className="border border-gray-300 px-2 py-2 text-center">{data.travel_count}</td>
-                        <td className="border border-gray-300 px-2 py-2 text-center font-medium">{data.total_absences}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Archive Section */}
-          {manualReportArchive.length > 0 && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Report Archive ({manualReportArchive.length}/5)
-              </h3>
-              <div className="space-y-3">
-                {manualReportArchive.map((report) => (
-                  <div key={report.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {report.dateRangeStart} to {report.dateRangeEnd}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {report.absenceTypes.join(', ')} • Generated {new Date(report.created_at || '').toLocaleDateString()}
-                      </p>
+            {/* Generated Report Display */}
+            {generatedManualReport && (
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+                <h3 className="text-base font-semibold text-white mb-6">
+                  Generated Report
+                </h3>
+                <div className="mb-6 p-4 bg-blue-600/20 border border-blue-500/30 rounded-xl">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-400 text-xs font-medium">Period</p>
+                      <p className="text-white font-semibold">{generatedManualReport.dateRangeStart} to {generatedManualReport.dateRangeEnd}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setGeneratedManualReport(report)}
-                        className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm font-medium transition"
-                      >
-                        View
-                      </button>
-                      <button
-                        onClick={() => handleDeleteManualReport(report.id)}
-                        disabled={loading}
-                        className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-sm font-medium transition disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div>
+                      <p className="text-slate-400 text-xs font-medium">Absence Types</p>
+                      <p className="text-white font-semibold">{generatedManualReport.absenceTypes.join(', ')}</p>
                     </div>
                   </div>
-                ))}
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-slate-300">
+                    <thead>
+                      <tr className="border-b border-slate-600">
+                        <th className="px-4 py-3 text-left font-semibold text-slate-200">Member</th>
+                        <th className="px-4 py-3 text-center font-semibold text-slate-200">Absent</th>
+                        <th className="px-4 py-3 text-center font-semibold text-slate-200">Sick</th>
+                        <th className="px-4 py-3 text-center font-semibold text-slate-200">Travel</th>
+                        <th className="px-4 py-3 text-center font-semibold text-slate-200">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(generatedManualReport.reportData || {}).map(([memberId, data], idx) => (
+                        <tr key={memberId} className={idx % 2 === 0 ? "bg-slate-700/20" : ""}>
+                          <td className="px-4 py-3 text-white font-medium">{data.name}</td>
+                          <td className="px-4 py-3 text-center text-orange-300 font-semibold">{data.absent_count}</td>
+                          <td className="px-4 py-3 text-center text-red-300 font-semibold">{data.sick_count}</td>
+                          <td className="px-4 py-3 text-center text-yellow-300 font-semibold">{data.travel_count}</td>
+                          <td className="px-4 py-3 text-center text-blue-300 font-bold">{data.total_absences}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            )}
+
+            {/* Archive Section */}
+            {manualReportArchive.length > 0 && (
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <h3 className="text-lg font-semibold text-white">
+                    Report Archive
+                  </h3>
+                  <span className="px-3 py-1 bg-slate-700 text-slate-300 text-xs font-semibold rounded-full">
+                    {manualReportArchive.length}/5
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {manualReportArchive.map((report) => (
+                    <div key={report.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-slate-700/30 border border-slate-600/50 rounded-xl transition-all hover:bg-slate-700/50">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-white mb-1">
+                          {report.dateRangeStart} to {report.dateRangeEnd}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {report.absenceTypes.join(', ')} • {new Date(report.created_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setGeneratedManualReport(report)}
+                          className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 font-medium rounded-lg text-sm transition-all border border-blue-500/30"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleDeleteManualReport(report.id)}
+                          disabled={loading}
+                          className="px-4 py-2 bg-red-600/30 hover:bg-red-600/50 text-red-300 font-medium rounded-lg text-sm transition-all border border-red-500/30 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Member Reports Section */}
+        {activeTab === "members" && (
+          <div className="space-y-6">
+            {/* Member Selection */}
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+              <h2 className="text-lg font-semibold text-white mb-6">Select Member</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    Member
+                  </label>
+                  <select
+                    value={selectedMemberId}
+                    onChange={(e) => setSelectedMemberId(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  >
+                    <option value="">-- Select a member --</option>
+                    {members.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    Service Type
+                  </label>
+                  <select
+                    value={memberServiceType}
+                    onChange={(e) => setMemberServiceType(e.target.value as 'sunday' | 'bible-study' | 'both')}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  >
+                    <option value="both">Both Sunday & Bible Study</option>
+                    <option value="sunday">Sunday Only</option>
+                    <option value="bible-study">Bible Study Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={memberStartDate}
+                    onChange={(e) => setMemberStartDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={memberEndDate}
+                    onChange={(e) => setMemberEndDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={loadMemberAttendance}
+                disabled={!selectedMemberId || loading}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 shadow-lg"
+              >
+                {loading ? "Loading..." : "Generate Report"}
+              </button>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Member Summary */}
+            {selectedMemberId && memberSummary && (
+              <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-blue-600/30 rounded-lg">
+                    <User className="w-5 h-5 text-blue-300" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">
+                      {members.find(m => m.id === selectedMemberId)?.name}
+                    </h2>
+                    <p className="text-xs text-slate-400">{memberStartDate} to {memberEndDate}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                  <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                    <p className="text-xs text-slate-400 font-medium mb-2">Present</p>
+                    <p className="text-2xl font-bold text-blue-300">{memberSummary.present}</p>
+                  </div>
+                  <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
+                    <p className="text-xs text-slate-400 font-medium mb-2">Absent</p>
+                    <p className="text-2xl font-bold text-orange-300">{memberSummary.absent}</p>
+                  </div>
+                  <div className="bg-red-600/20 border border-red-500/30 rounded-xl p-4">
+                    <p className="text-xs text-slate-400 font-medium mb-2">Sick</p>
+                    <p className="text-2xl font-bold text-red-300">{memberSummary.sick}</p>
+                  </div>
+                  <div className="bg-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
+                    <p className="text-xs text-slate-400 font-medium mb-2">Travel</p>
+                    <p className="text-2xl font-bold text-yellow-300">{memberSummary.travel}</p>
+                  </div>
+                  <div className="bg-slate-600/20 border border-slate-500/30 rounded-xl p-4">
+                    <p className="text-xs text-slate-400 font-medium mb-2">Total</p>
+                    <p className="text-2xl font-bold text-slate-300">{memberSummary.total}</p>
+                  </div>
+                </div>
+
+                {memberAttendanceHistory.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-semibold text-slate-300 mb-4">Attendance History</h3>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {memberAttendanceHistory.map((record: any) => (
+                        <div key={record.id} className="flex items-center justify-between p-3 bg-slate-700/30 border border-slate-600/50 rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium text-white">
+                              {record.attendance?.attendance_date}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {record.attendance?.service_type === 'sunday' ? 'Sunday Service' : 'Bible Study'}
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            record.status === 'present' ? 'bg-blue-600/30 text-blue-300' :
+                            record.status === 'absent' ? 'bg-orange-600/30 text-orange-300' :
+                            record.status === 'sick' ? 'bg-red-600/30 text-red-300' :
+                            'bg-yellow-600/30 text-yellow-300'
+                          }`}>
+                            {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

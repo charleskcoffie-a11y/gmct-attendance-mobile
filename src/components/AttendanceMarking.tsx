@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService } from "../supabase";
 import { Member, ServiceType } from "../types";
-import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle, LogOut, BarChart3, Users } from "lucide-react";
 
 interface AttendanceMarkingProps {
   classNumber: number;
@@ -383,172 +383,206 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const restrictFields = !isAdminView && isEditing;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 pb-24">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 sticky top-0 z-20 shadow-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-2xl font-bold">Class {classNumber}</h1>
-            <p className="text-blue-100">Attendance Marking</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <Wifi className="w-5 h-5 text-green-300" />
-            ) : (
-              <WifiOff className="w-5 h-5 text-yellow-300" />
-            )}
-            {onBackToClasses && (
-              <button
-                onClick={onBackToClasses}
-                className="px-3 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm font-medium transition"
-              >
-                Back to Classes
-              </button>
-            )}
-            {onShowReports && (
-              <button
-                onClick={onShowReports}
-                className="px-3 py-2 bg-blue-700 hover:bg-blue-800 rounded-lg text-sm font-medium transition"
-              >
-                Reports
-              </button>
-            )}
-            <button
-              onClick={onLogout}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 rounded-lg text-sm font-medium transition"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Service Type & Date Selector */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm text-blue-100 mb-1 block">Service Type</label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg bg-blue-700 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              <option value="sunday">Sunday Service</option>
-              <option value="bible-study">Bible Study</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-blue-100 mb-1 block">Date</label>
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700/50 backdrop-blur-sm">
+        <div className="p-4 md:p-6 max-w-7xl mx-auto">
+          {/* Top Row */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white">Class {classNumber}</h1>
+                <p className="text-xs md:text-sm text-slate-400">Mark Attendance</p>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              {isOnline ? (
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 border border-emerald-500/30 rounded-lg">
+                  <Wifi className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs text-emerald-300 font-medium">Online</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
+                  <WifiOff className="w-4 h-4 text-yellow-400" />
+                  <span className="text-xs text-yellow-300 font-medium">Offline</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Service Type & Date Selector */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-400 mb-2 block">Service Type</label>
+              <select
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                className="w-full px-3 py-2.5 rounded-xl bg-slate-700 border border-slate-600 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              >
+                <option value="sunday">Sunday Service</option>
+                <option value="bible-study">Bible Study</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-400 mb-2 block">Date</label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+                <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-end gap-2">
+              {onShowReports && (
+                <button
+                  onClick={onShowReports}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reports</span>
+                </button>
+              )}
+              {onBackToClasses && (
+                <button
+                  onClick={onBackToClasses}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all"
+                >
+                  <span className="hidden sm:inline">Back</span>
+                  <span className="sm:hidden">←</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded-xl font-semibold transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Alert Messages */}
-      <div className="p-4 space-y-2">
+      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-3">
         {error && (
-          <div className="p-3 bg-red-100 border border-red-400 rounded-lg text-red-700 text-sm">
+          <div className="p-4 bg-red-950/50 border border-red-700/50 rounded-xl text-red-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             {error}
           </div>
         )}
         {success && (
-          <div className="p-3 bg-green-100 border border-green-400 rounded-lg text-green-700 text-sm flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" />
+          <div className="p-4 bg-emerald-950/50 border border-emerald-700/50 rounded-xl text-emerald-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             {success}
           </div>
         )}
 
         {/* Offline Notice */}
         {!isOnline && (
-          <div className="p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-sm">
-            You are currently offline. Data will be synced when connection is restored.
+          <div className="p-4 bg-yellow-950/50 border border-yellow-700/50 rounded-xl text-yellow-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            Offline mode active. Data will sync when connected.
           </div>
         )}
 
         {serviceDateWarning && (
-          <div className="p-3 bg-orange-100 border border-orange-300 rounded-lg text-orange-800 text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
+          <div className="p-4 bg-orange-950/50 border border-orange-700/50 rounded-xl text-orange-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             {serviceDateWarning}
           </div>
         )}
 
         {/* Existing Attendance Status */}
         {existingAttendance && !attendanceLoading && (
-          <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-blue-800 text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
+          <div className="p-4 bg-blue-950/50 border border-blue-700/50 rounded-xl text-blue-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               <strong>Attendance Already Marked</strong> for {selectedDate} ({serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'})
-              <br />
-              Present: {existingAttendance.total_members_present}, Absent: {existingAttendance.total_members_absent}
+              <br className="mt-1" />
+              Present: {existingAttendance.total_members_present} | Absent: {existingAttendance.total_members_absent}
             </div>
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-4">
-        {onShowReports && (
-          <div className="mb-4">
-            <button
-              onClick={onShowReports}
-              className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition shadow-md"
-            >
-              Open Class Reports
-            </button>
-          </div>
-        )}
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-blue-500">
-            <p className="text-xs text-gray-600">Total</p>
-            <p className="text-2xl font-bold text-blue-600">{members.length}</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-green-500">
-            <p className="text-xs text-gray-600">Present</p>
-            <p className="text-2xl font-bold text-green-600">{presentCount}</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-red-500">
-            <p className="text-xs text-gray-600">Absent</p>
-            <p className="text-2xl font-bold text-red-600">{absentCount}</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-orange-500">
-            <p className="text-xs text-gray-600">Sick</p>
-            <p className="text-2xl font-bold text-orange-600">{sickCount}</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-purple-500">
-            <p className="text-xs text-gray-600">Travel</p>
-            <p className="text-2xl font-bold text-purple-600">{travelCount}</p>
+      <div className="p-4 md:p-6 max-w-7xl mx-auto">
+        {/* Compact Stats Dashboard */}
+        <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 border border-slate-600/50 rounded-2xl p-4 mb-6 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Total Members - Main Stat */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600/50 to-blue-500/50 border border-blue-400/50 flex items-center justify-center">
+                <span className="text-xl font-bold text-white">{members.length}</span>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Total Members</p>
+              </div>
+            </div>
+
+            {/* Status Breakdown - Mini Stats */}
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-green-600/20 border border-green-500/30">
+                <p className="font-bold text-green-300">{presentCount}</p>
+                <p className="text-xs text-green-300 opacity-75">Present</p>
+              </div>
+              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500/30">
+                <p className="font-bold text-red-300">{absentCount}</p>
+                <p className="text-xs text-red-300 opacity-75">Absent</p>
+              </div>
+              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30">
+                <p className="font-bold text-orange-300">{sickCount}</p>
+                <p className="text-xs text-orange-300 opacity-75">Sick</p>
+              </div>
+              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30">
+                <p className="font-bold text-purple-300">{travelCount}</p>
+                <p className="text-xs text-purple-300 opacity-75">Travel</p>
+              </div>
+            </div>
+
+            {/* Attendance Rate */}
+            {members.length > 0 && (
+              <div className="text-right">
+                <p className="text-2xl font-bold text-white">
+                  {Math.round((presentCount / members.length) * 100)}%
+                </p>
+                <p className="text-xs text-slate-400 font-medium">Attendance Rate</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Search */}
-        <div className="mb-4">
+        <div className="mb-6">
           <input
             type="text"
             value={memberSearch}
             onChange={(e) => setMemberSearch(e.target.value)}
-            placeholder="Search by name, phone, or member number"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search by name, phone, or member #"
+            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
 
         {/* Member Editor Modal */}
         {showMemberForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30 p-4">
-            <div className="bg-white rounded-lg max-w-sm w-full shadow-xl">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-40 p-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full shadow-xl">
               <div className="p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
+                <h3 className="text-lg font-bold text-white mb-6">
                   {editingMember ? "Edit Member" : "Add New Member"}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
                       Name *
                     </label>
                     <input
@@ -558,13 +592,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                         setMemberFormData({ ...memberFormData, name: e.target.value })
                       }
                       disabled={restrictFields}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-700/50"
                       placeholder="Member name"
                     />
                   </div>
                   {isAdminView && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">
                         Member Number
                       </label>
                       <input
@@ -573,13 +607,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                         onChange={(e) =>
                           setMemberFormData({ ...memberFormData, member_number: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Member number"
                       />
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
                       Phone
                     </label>
                     <input
@@ -738,15 +772,17 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
         {/* Members List */}
         {loading && members.length === 0 ? (
-          <div className="text-center py-8 text-gray-600">Loading members...</div>
+          <div className="text-center py-16 text-slate-400">
+            <div className="text-sm font-medium">Loading members...</div>
+          </div>
         ) : filteredMembers.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">
+          <div className="text-center py-16">
+            <p className="text-slate-400 mb-6 text-sm">
               {members.length === 0 ? "No members in this class yet" : "No members match your search"}
             </p>
             <button
               onClick={handleAddMember}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all shadow-lg"
             >
               <Plus className="w-5 h-5" />
               Add First Member
@@ -757,69 +793,69 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
             {filteredMembers.map((member) => (
               <div
                 key={member.id}
-                className="bg-white rounded-lg p-4 shadow-sm border border-gray-200"
+                className="bg-slate-800/50 border border-slate-600/50 rounded-2xl p-4 backdrop-blur-sm transition-all hover:bg-slate-800/70"
               >
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900">
+                    <h4 className="font-semibold text-white">
                       {member.name}
                     </h4>
                     {(member.phone || member.phoneNumber) && (
-                      <p className="text-sm text-gray-600">{member.phone || member.phoneNumber}</p>
+                      <p className="text-sm text-slate-400">{member.phone || member.phoneNumber}</p>
                     )}
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEditMember(member)}
-                      className="p-2 hover:bg-blue-50 rounded-lg transition"
+                      className="p-2.5 hover:bg-blue-600/20 rounded-lg transition border border-transparent hover:border-blue-500/30"
                     >
-                      <Edit2 className="w-4 h-4 text-blue-600" />
+                      <Edit2 className="w-4 h-4 text-blue-400" />
                     </button>
                     <button
                       onClick={() => handleDeleteMember(member.id!)}
-                      className="p-2 hover:bg-red-50 rounded-lg transition"
+                      className="p-2.5 hover:bg-red-600/20 rounded-lg transition border border-transparent hover:border-red-500/30"
                     >
-                      <Trash2 className="w-4 h-4 text-red-600" />
+                      <Trash2 className="w-4 h-4 text-red-400" />
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => updateMemberStatus(member.id!, "present")}
-                    className={`py-2 px-2 rounded-lg font-medium text-sm transition ${
+                    className={`col-span-2 py-3 px-2 rounded-xl font-bold text-base transition ${
                       member.attendanceStatus === "present"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-green-100"
+                        ? "bg-green-600 text-white shadow-lg"
+                        : "bg-slate-700 text-slate-300 hover:bg-green-600/30 hover:text-green-300 border border-slate-600"
                     }`}
                   >
-                    Present
+                    ✓ Present
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "absent")}
-                    className={`py-2 px-2 rounded-lg font-medium text-sm transition ${
+                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
                       member.attendanceStatus === "absent"
-                        ? "bg-red-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-red-100"
+                        ? "bg-red-600 text-white border-red-500"
+                        : "bg-slate-700 text-slate-300 hover:bg-red-600/30 hover:text-red-300 border border-slate-600"
                     }`}
                   >
                     Absent
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "sick")}
-                    className={`py-2 px-2 rounded-lg font-medium text-sm transition ${
+                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
                       member.attendanceStatus === "sick"
-                        ? "bg-orange-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-orange-100"
+                        ? "bg-orange-600 text-white border-orange-500"
+                        : "bg-slate-700 text-slate-300 hover:bg-orange-600/30 hover:text-orange-300 border border-slate-600"
                     }`}
                   >
                     Sick
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "travel")}
-                    className={`py-2 px-2 rounded-lg font-medium text-sm transition ${
+                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
                       member.attendanceStatus === "travel"
-                        ? "bg-purple-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-purple-100"
+                        ? "bg-purple-600 text-white border-purple-500"
+                        : "bg-slate-700 text-slate-300 hover:bg-purple-600/30 hover:text-purple-300 border border-slate-600"
                     }`}
                   >
                     Travel
@@ -832,11 +868,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
         {/* Action Buttons */}
         {members.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg">
-            <div className="max-w-2xl mx-auto flex gap-3">
+          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900 to-transparent border-t border-slate-700/50 p-4 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto flex gap-3">
               <button
                 onClick={handleAddMember}
-                className="flex items-center gap-2 flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg font-medium transition"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all border border-slate-600"
               >
                 <Plus className="w-5 h-5" />
                 Add Member
@@ -844,7 +880,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               <button
                 onClick={handleSubmitAttendance}
                 disabled={loading || !!serviceDateWarning}
-                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 shadow-lg"
               >
                 {loading ? "Submitting..." : "Submit Attendance"}
               </button>

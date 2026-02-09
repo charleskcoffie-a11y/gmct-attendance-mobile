@@ -641,3 +641,83 @@ async function cleanupOldManualReports(classNumber: number) {
   }
 }
 
+// Get member attendance history for a specific date range and optional service type filter
+export async function getMemberAttendanceHistory(
+  classNumber: number,
+  memberId: string,
+  startDate: string,
+  endDate: string,
+  serviceType?: 'sunday' | 'bible-study'
+) {
+  let query = supabase
+    .from('member_attendance')
+    .select(`
+      id,
+      status,
+      attendance_id,
+      created_at,
+      attendance:attendance_id(
+        attendance_date,
+        service_type
+      )
+    `)
+    .eq('member_id', memberId)
+    .eq('class_number', classNumber.toString())
+    .gte('created_at', `${startDate}T00:00:00`)
+    .lte('created_at', `${endDate}T23:59:59`)
+    .order('created_at', { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching member attendance history:', error);
+    return [];
+  }
+
+  // Filter by service type if specified
+  if (serviceType && data) {
+    return data.filter((record: any) => 
+      record.attendance?.service_type === serviceType
+    );
+  }
+
+  return data || [];
+}
+
+// Get member attendance summary statistics
+export async function getMemberAttendanceSummary(
+  classNumber: number,
+  memberId: string,
+  startDate: string,
+  endDate: string,
+  serviceType?: 'sunday' | 'bible-study'
+) {
+  const records = await getMemberAttendanceHistory(classNumber, memberId, startDate, endDate, serviceType);
+  
+  const summary = {
+    total: records.length,
+    present: 0,
+    absent: 0,
+    sick: 0,
+    travel: 0
+  };
+
+  records.forEach((record: any) => {
+    switch (record.status) {
+      case 'present':
+        summary.present++;
+        break;
+      case 'absent':
+        summary.absent++;
+        break;
+      case 'sick':
+        summary.sick++;
+        break;
+      case 'travel':
+        summary.travel++;
+        break;
+    }
+  });
+
+  return summary;
+}
