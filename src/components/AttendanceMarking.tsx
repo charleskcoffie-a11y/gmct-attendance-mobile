@@ -113,37 +113,47 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   // Wait for BOTH members to load AND initialMemberStatuses to arrive
   // Only apply once per edit session (track with ref)
   useEffect(() => {
+    console.log('=== INITIAL STATUS EFFECT TRIGGERED ===');
+    console.log('initialMemberStatuses:', initialMemberStatuses);
+    console.log('members.length:', members.length);
+    console.log('initialStatusesAppliedRef.current:', initialStatusesAppliedRef.current);
+    
     // Reset ref when initialMemberStatuses changes (new edit session)
     if (!initialMemberStatuses || initialMemberStatuses.length === 0) {
+      console.log('❌ No initial member statuses provided');
       initialStatusesAppliedRef.current = false;
       return;
     }
 
     // Don't apply if already applied
     if (initialStatusesAppliedRef.current) {
+      console.log('⏭️ Already applied initial statuses, skipping');
       return;
     }
 
     // Wait for members to load
     if (members.length === 0) {
-      console.log('Waiting for members to load before applying initial statuses...');
+      console.log('⏳ Waiting for members to load before applying initial statuses...');
       return;
     }
 
-    console.log('Applying initial member statuses:', initialMemberStatuses);
-    console.log('Current members:', members);
+    console.log('✅ Ready to apply! Initial statuses:', initialMemberStatuses);
+    console.log('✅ Current members:', members.map(m => ({ id: m.id, name: m.name })));
 
     const updatedMembers = members.map((member) => {
       const existingStatus = initialMemberStatuses.find(
         (s) => {
           const idMatch = String(s.member_id) === String(member.id);
           const nameMatch = s.member_name?.toLowerCase() === member.name?.toLowerCase();
+          console.log(`  Checking ${member.name} (id: ${member.id}): idMatch=${idMatch}, nameMatch=${nameMatch}`);
           return idMatch || nameMatch;
         }
       );
       
       if (existingStatus) {
-        console.log(`✅ Matched member ${member.name}: ${existingStatus.status}`);
+        console.log(`  ✅ → Matched ${member.name}: ${existingStatus.status}`);
+      } else {
+        console.log(`  ❌ → No match for ${member.name}, setting to absent`);
       }
       
       return {
@@ -152,13 +162,14 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       };
     });
     
-    console.log('Updated members with statuses:', updatedMembers);
+    console.log('📝 Updated members with statuses:', updatedMembers.map(m => ({ name: m.name, status: m.attendanceStatus })));
     setMembers(updatedMembers);
     setSelectionChanged(false);
     setIsEditMode(true);
     
     // Mark that we've applied the initial statuses
     initialStatusesAppliedRef.current = true;
+    console.log('=== INITIAL STATUS EFFECT COMPLETE ===');
   }, [initialMemberStatuses, members.length]);
 
   // Load attendance for the selected date and service type

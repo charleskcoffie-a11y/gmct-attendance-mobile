@@ -249,6 +249,8 @@ export async function getMemberAttendanceForDateAndService(
   date: string,
   serviceType: 'sunday' | 'bible-study'
 ) {
+  console.log('🔍 getMemberAttendanceForDateAndService called:', { classNumber, date, serviceType });
+  
   // First get the attendance record
   const { data: attendanceRecord, error: attendanceError } = await supabase
     .from('attendance')
@@ -259,7 +261,10 @@ export async function getMemberAttendanceForDateAndService(
     .limit(1)
     .maybeSingle();
   
+  console.log('📋 Attendance record:', attendanceRecord);
+  
   if (attendanceError || !attendanceRecord) {
+    console.error('❌ No attendance record found:', attendanceError);
     return [];
   }
   
@@ -270,15 +275,22 @@ export async function getMemberAttendanceForDateAndService(
     .eq('attendance_id', attendanceRecord.id)
     .order('member_name', { ascending: true });
 
+  console.log('👥 Raw member records from DB:', data);
+  
   if (error) {
-    console.error('Error fetching member attendance records:', error);
+    console.error('❌ Error fetching member attendance records:', error);
     return [];
   }
 
-  return (data || []).map((record: any) => ({
+  const result = (data || []).map((record: any) => ({
     member_id: record.member_id,
     member_name: record.members?.name || record.member_name,
     status: record.status,
+  }));
+  
+  console.log('📤 Mapped result:', result);
+  
+  return result;
   }));
 }
 

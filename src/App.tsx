@@ -256,13 +256,16 @@ function App() {
                   <AttendanceRecords
                     classNumber={session.classNumber}
                     onEditRecord={async (date, serviceType) => {
+                      console.log('📋 Edit record clicked:', { date, serviceType });
                       // Load the member attendance records
                       const memberStatuses = await getMemberAttendanceForDateAndService(
                         session.classNumber,
                         date,
                         serviceType as 'sunday' | 'bible-study'
                       );
-                      console.log('Loaded member statuses from record:', memberStatuses);
+                      console.log('📥 Loaded member statuses from record:', memberStatuses);
+                      console.log('📥 Count:', memberStatuses.length);
+                      memberStatuses.forEach((m: any) => console.log(`  - ${m.member_name}: ${m.status}`));
                       setEditRecordDate(date);
                       setEditRecordServiceType(serviceType);
                       setEditRecordMemberStatuses(memberStatuses);
