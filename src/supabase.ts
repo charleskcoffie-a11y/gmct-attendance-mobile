@@ -195,24 +195,25 @@ export async function saveAttendance(
     throw attendanceError;
   }
 
-  // Save individual member attendance records
+  // Save individual member attendance records in bulk
   if (attendanceData && attendanceData.id) {
-    for (const record of memberRecords) {
-      const { error: memberError } = await supabase
-        .from('member_attendance')
-        .upsert({
-          attendance_id: attendanceData.id,
-          member_id: record.memberId,
-          member_name: record.memberName || record.memberId,
-          class_number: classNumber.toString(),
-          status: record.status,
-        }, {
-          onConflict: 'attendance_id,member_id'
-        });
+    const memberAttendanceRecords = memberRecords.map((record) => ({
+      attendance_id: attendanceData.id,
+      member_id: record.memberId,
+      member_name: record.memberName || record.memberId,
+      class_number: classNumber.toString(),
+      status: record.status,
+    }));
 
-      if (memberError) {
-        console.error('Error saving member attendance:', memberError);
-      }
+    const { error: memberError } = await supabase
+      .from('member_attendance')
+      .upsert(memberAttendanceRecords, {
+        onConflict: 'attendance_id,member_id'
+      });
+
+    if (memberError) {
+      console.error('Error saving member attendance:', memberError);
+      throw memberError;
     }
   }
   

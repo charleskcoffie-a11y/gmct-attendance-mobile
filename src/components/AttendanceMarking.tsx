@@ -110,16 +110,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   // Apply initial member statuses when editing an existing record
   // This runs AFTER members have been loaded
+  // Only depends on initialMemberStatuses - NOT on members!
+  // This prevents the effect from re-running and resetting selections when user clicks members
   useEffect(() => {
-    if (initialMemberStatuses && initialMemberStatuses.length > 0) {
+    if (initialMemberStatuses && initialMemberStatuses.length > 0 && members.length > 0) {
       console.log('Applying initial member statuses:', initialMemberStatuses);
       console.log('Current members:', members);
-      
-      // Wait for members to load
-      if (members.length === 0) {
-        console.warn('Members not loaded yet, will retry...');
-        return;
-      }
 
       console.log('Matching member statuses...');
       const updatedMembers = members.map((member) => {
@@ -146,7 +142,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       setSelectionChanged(false);
       setIsEditMode(true);
     }
-  }, [initialMemberStatuses, members]);
+  }, [initialMemberStatuses]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {
