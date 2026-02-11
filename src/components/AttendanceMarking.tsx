@@ -1055,10 +1055,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               </div>
 
               {/* Selection Status */}
-              {selectionChanged && (
+              {selectionChanged && !isEditMode && (
                 <div className="mb-4 p-3 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 rounded-lg text-center">
                   <p className="text-sm font-semibold text-blue-300">
                     ✓ Selections made • Ready to submit
+                  </p>
+                </div>
+              )}
+              
+              {isEditMode && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-amber-600/30 to-orange-600/30 border border-amber-500/50 rounded-lg text-center">
+                  <p className="text-sm font-semibold text-amber-300">
+                    ✏️ Edit Mode • Click members to change status, then click Update button
                   </p>
                 </div>
               )}
@@ -1080,7 +1088,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                       loading, 
                       selectionChanged,
                       serviceDateWarning,
-                      membersCount: members.length
+                      membersCount: members.length,
+                      isEditMode
                     });
                     handleSubmitAttendance();
                   }}
@@ -1088,13 +1097,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                   className={`flex-1 px-6 py-4 rounded-xl font-bold transition-all shadow-2xl border-2 flex items-center justify-center gap-2 text-lg ${
                     loading
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 animate-pulse'
-                      : !selectionChanged
+                      : !selectionChanged && !isEditMode
                       ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-gray-400 border-gray-600 cursor-not-allowed'
                       : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-green-500 hover:border-green-400 transform hover:scale-105'
                   }`}
                 >
                   <CheckCircle className="w-6 h-6" />
-                  {loading ? "⏳ Submitting..." : "Submit Attendance"}
+                  {loading ? "⏳ Submitting..." : isEditMode ? "💾 Update Attendance" : "✅ Submit Attendance"}
                 </button>
               </div>
             </div>
