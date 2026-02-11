@@ -160,52 +160,57 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
   const stats = getTotalStats();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 sticky top-0 z-20 shadow-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-2xl font-bold">All Classes</h1>
-            <p className="text-blue-100">Admin Attendance</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <Wifi className="w-5 h-5 text-green-300" />
-            ) : (
-              <WifiOff className="w-5 h-5 text-yellow-300" />
-            )}
-            <button
-              onClick={onLogout}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-800 rounded-lg text-sm font-medium transition"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Service Type & Date Selector */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm text-blue-100 mb-1 block">Service Type</label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg bg-blue-700 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              <option value="sunday">Sunday Service</option>
-              <option value="bible-study">Bible Study</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-blue-100 mb-1 block">Date</label>
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-slate-900 via-blue-700 to-emerald-700 text-white shadow-xl">
+        <div className="px-5 py-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">All Classes</h1>
+              <p className="text-sm md:text-base text-blue-100/90 font-medium">Admin Attendance</p>
+            </div>
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg bg-blue-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold border ${
+                isOnline
+                  ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/40"
+                  : "bg-amber-500/15 text-amber-200 border-amber-400/40"
+              }`}>
+                {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                {isOnline ? "Online" : "Offline"}
+              </span>
+              <button
+                onClick={onLogout}
+                className="px-4 py-2.5 bg-white/15 hover:bg-white/25 text-white rounded-xl font-semibold transition text-sm backdrop-blur-sm border border-white/20"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          {/* Service Type & Date Selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm md:text-base text-blue-100/90 mb-1.5 block font-medium">Service Type</label>
+              <select
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                className="w-full px-3 py-2.5 rounded-lg bg-blue-700/80 text-white text-sm md:text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 border border-white/10"
+              >
+                <option value="sunday">Sunday Service</option>
+                <option value="bible-study">Bible Study</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm md:text-base text-blue-100/90 mb-1.5 block font-medium">Date</label>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="flex-1 px-3 py-2.5 rounded-lg bg-blue-700/80 text-white text-sm md:text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-300 border border-white/10"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -214,12 +219,12 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
       {/* Alert Messages */}
       <div className="p-4 space-y-2">
         {error && (
-          <div className="p-3 bg-red-100 border border-red-400 rounded-lg text-red-700 text-sm">
+          <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg text-red-200 text-sm">
             {error}
           </div>
         )}
         {success && (
-          <div className="p-3 bg-green-100 border border-green-400 rounded-lg text-green-700 text-sm flex items-center gap-2">
+          <div className="p-3 bg-emerald-900/30 border border-emerald-700/40 rounded-lg text-emerald-200 text-sm flex items-center gap-2">
             <CheckCircle className="w-4 h-4" />
             {success}
           </div>
@@ -227,7 +232,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
 
         {/* Offline Notice */}
         {!isOnline && (
-          <div className="p-3 bg-yellow-100 border border-yellow-400 rounded-lg text-yellow-800 text-sm">
+          <div className="p-3 bg-amber-900/30 border border-amber-700/40 rounded-lg text-amber-200 text-sm">
             You are currently offline. Data will be synced when connection is restored.
           </div>
         )}
@@ -237,33 +242,33 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
       <div className="p-4">
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-blue-500">
-            <p className="text-xs text-gray-600">Total</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
+          <div className="bg-slate-900/70 rounded-xl p-3 shadow-sm border border-slate-700/60">
+            <p className="text-xs text-slate-400">Total</p>
+            <p className="text-2xl font-bold text-blue-300">{stats.total}</p>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-green-500">
-            <p className="text-xs text-gray-600">Present</p>
-            <p className="text-2xl font-bold text-green-600">{stats.present}</p>
+          <div className="bg-slate-900/70 rounded-xl p-3 shadow-sm border border-slate-700/60">
+            <p className="text-xs text-slate-400">Present</p>
+            <p className="text-2xl font-bold text-emerald-300">{stats.present}</p>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-red-500">
-            <p className="text-xs text-gray-600">Absent</p>
-            <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
+          <div className="bg-slate-900/70 rounded-xl p-3 shadow-sm border border-slate-700/60">
+            <p className="text-xs text-slate-400">Absent</p>
+            <p className="text-2xl font-bold text-red-300">{stats.absent}</p>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-orange-500">
-            <p className="text-xs text-gray-600">Sick</p>
-            <p className="text-2xl font-bold text-orange-600">{stats.sick}</p>
+          <div className="bg-slate-900/70 rounded-xl p-3 shadow-sm border border-slate-700/60">
+            <p className="text-xs text-slate-400">Sick</p>
+            <p className="text-2xl font-bold text-orange-300">{stats.sick}</p>
           </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border-l-4 border-purple-500">
-            <p className="text-xs text-gray-600">Travel</p>
-            <p className="text-2xl font-bold text-purple-600">{stats.travel}</p>
+          <div className="bg-slate-900/70 rounded-xl p-3 shadow-sm border border-slate-700/60">
+            <p className="text-xs text-slate-400">Travel</p>
+            <p className="text-2xl font-bold text-purple-300">{stats.travel}</p>
           </div>
         </div>
 
         {/* Classes List */}
         {loading && classesData.length === 0 ? (
-          <div className="text-center py-8 text-gray-600">Loading all classes...</div>
+          <div className="text-center py-8 text-slate-400">Loading all classes...</div>
         ) : classesData.length === 0 ? (
-          <div className="text-center py-8 text-gray-600">
+          <div className="text-center py-8 text-slate-400">
             No members found in any class
           </div>
         ) : (
@@ -271,7 +276,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
             {classesData.map((classData) => (
               <div
                 key={classData.classNumber}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+                className="bg-slate-900/70 rounded-xl shadow-sm border border-slate-700/60 overflow-hidden"
               >
                 {/* Class Header */}
                 <button
@@ -282,18 +287,18 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                         : classData.classNumber
                     )
                   }
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-800/60 transition"
                 >
                   <div className="text-left">
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className="font-semibold text-white">
                       Class {classData.classNumber}
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-400">
                       {classData.members.length} members
                     </p>
                   </div>
                   <svg
-                    className={`w-5 h-5 text-gray-500 transition transform ${
+                    className={`w-5 h-5 text-slate-400 transition transform ${
                       expandedClass === classData.classNumber ? "rotate-180" : ""
                     }`}
                     fill="none"
@@ -311,18 +316,18 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
 
                 {/* Expanded Members List */}
                 {expandedClass === classData.classNumber && (
-                  <div className="border-t border-gray-200 px-4 py-3 space-y-2">
+                  <div className="border-t border-slate-700 px-4 py-3 space-y-2">
                     {classData.members.map((member) => (
                       <div
                         key={member.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-slate-800/60 rounded-lg"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
+                          <p className="font-medium text-white truncate">
                             {member.name}
                           </p>
                           {(member.phone || member.phoneNumber) && (
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-slate-400">
                               {member.phone || member.phoneNumber}
                             </p>
                           )}
@@ -338,8 +343,8 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                             }
                             className={`py-1 px-2 rounded text-xs font-medium transition ${
                               member.attendanceStatus === "present"
-                                ? "bg-green-600 text-white"
-                                : "bg-gray-200 text-gray-700 hover:bg-green-100"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-slate-700 text-slate-200 hover:bg-emerald-600/30"
                             }`}
                           >
                             ✓
@@ -355,7 +360,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                             className={`py-1 px-2 rounded text-xs font-medium transition ${
                               member.attendanceStatus === "absent"
                                 ? "bg-red-600 text-white"
-                                : "bg-gray-200 text-gray-700 hover:bg-red-100"
+                                : "bg-slate-700 text-slate-200 hover:bg-red-600/30"
                             }`}
                           >
                             ✗
@@ -371,7 +376,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                             className={`py-1 px-2 rounded text-xs font-medium transition ${
                               member.attendanceStatus === "sick"
                                 ? "bg-orange-600 text-white"
-                                : "bg-gray-200 text-gray-700 hover:bg-orange-100"
+                                : "bg-slate-700 text-slate-200 hover:bg-orange-600/30"
                             }`}
                           >
                             🤒
@@ -387,7 +392,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                             className={`py-1 px-2 rounded text-xs font-medium transition ${
                               member.attendanceStatus === "travel"
                                 ? "bg-purple-600 text-white"
-                                : "bg-gray-200 text-gray-700 hover:bg-purple-100"
+                                : "bg-slate-700 text-slate-200 hover:bg-purple-600/30"
                             }`}
                           >
                             ✈️
@@ -404,18 +409,18 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
 
         {/* Submit Button */}
         {classesData.length > 0 && (
-          <div className="sticky bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 flex gap-3">
+          <div className="sticky bottom-0 left-0 right-0 p-4 bg-slate-900/80 border-t border-slate-700/60 backdrop-blur flex gap-3">
             <button
               onClick={handleSubmitAttendance}
               disabled={loading || classesData.length === 0}
-              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition disabled:opacity-50"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white rounded-lg font-semibold transition disabled:opacity-50"
             >
               {loading ? "Submitting..." : "Submit All Attendance"}
             </button>
             <button
               onClick={loadAllClasses}
               disabled={loading}
-              className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg font-semibold transition disabled:opacity-50"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition disabled:opacity-50"
             >
               Refresh
             </button>

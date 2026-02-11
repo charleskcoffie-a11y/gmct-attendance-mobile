@@ -5,7 +5,6 @@ import {
   getAttendanceRange,
   getClassMembers,
   getClassReportStatus,
-  updateAttendanceTotals,
   saveManualReport,
   getManualReports,
   deleteManualReport,
@@ -48,7 +47,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
   });
   const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [attendanceEdits, setAttendanceEdits] = useState<Record<string, { present: number; absent: number; visitors: number }>>({});
   const [reportStatus, setReportStatus] = useState<any>(null);
   const [ministerEmails, setMinisterEmails] = useState("");
   const [loading, setLoading] = useState(false);
@@ -213,7 +211,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
         total_visitors: Number(row.total_visitors || 0)
       }));
       setAttendanceRows(mapped);
-      setAttendanceEdits({});
     } catch (err) {
       setError("Failed to load attendance records");
     } finally {
@@ -273,47 +270,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
     }
   };
 
-  const handleEditTotals = (attendanceId: string, field: "present" | "absent" | "visitors", value: string) => {
-    const numeric = Number(value || 0);
-    setAttendanceEdits((prev) => ({
-      ...prev,
-      [attendanceId]: {
-        present: prev[attendanceId]?.present ?? getAttendanceValue(attendanceId, "present"),
-        absent: prev[attendanceId]?.absent ?? getAttendanceValue(attendanceId, "absent"),
-        visitors: prev[attendanceId]?.visitors ?? getAttendanceValue(attendanceId, "visitors"),
-        [field]: numeric
-      }
-    }));
-  };
-
-  const getAttendanceValue = (attendanceId: string, field: "present" | "absent" | "visitors") => {
-    const row = attendanceRows.find((r) => r.id === attendanceId);
-    if (!row) return 0;
-    if (field === "present") return row.total_members_present || 0;
-    if (field === "absent") return row.total_members_absent || 0;
-    return row.total_visitors || 0;
-  };
-
-  const handleSaveAttendanceRow = async (attendanceId: string) => {
-    const edit = attendanceEdits[attendanceId];
-    if (!edit) return;
-
-    setLoading(true);
-    try {
-      await updateAttendanceTotals(attendanceId, {
-        present: edit.present,
-        absent: edit.absent,
-        visitors: edit.visitors
-      });
-      setSuccess("Attendance updated successfully");
-      await loadAttendance();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError("Failed to update attendance");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGenerateQuarterlyReport = () => {
     if (activeTab !== "quarterly") return;
@@ -478,13 +434,18 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-300 text-xs font-semibold mb-3 border border-blue-500/20">
+                Analytics Dashboard
+              </div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
                   <BarChart3 className="w-6 h-6 text-white" />
                 </div>
-                <h1 className="text-4xl font-bold text-white">Class Reports</h1>
+                <div>
+                  <h1 className="text-4xl font-bold text-white">Class Reports</h1>
+                  <p className="text-sm md:text-base text-slate-300">Class {classNumber} • Attendance Analytics & Reports</p>
+                </div>
               </div>
-              <p className="text-slate-400 ml-12">Class {classNumber} • Attendance Analytics & Reports</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {onBackToClasses && (
@@ -749,75 +710,6 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
           </div>
         )}
 
-        {/* Monthly Attendance Records */}
-        {activeTab === "monthly" && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white">Attendance Records</h2>
-              <span className="text-xs text-slate-400">{dateRange.start} to {dateRange.end}</span>
-            </div>
-
-            {loading ? (
-              <div className="text-sm text-slate-400 py-8 text-center">Loading attendance...</div>
-            ) : attendanceRows.length === 0 ? (
-              <div className="text-sm text-slate-400 py-8 text-center">No attendance records for this period</div>
-            ) : (
-              <div className="space-y-3">
-                {attendanceRows.map((row) => (
-                  <div key={row.id} className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-5 transition-all hover:bg-slate-700/50">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="font-semibold text-white">{row.attendance_date}</p>
-                        <p className="text-xs text-slate-400">
-                          {row.service_type === "sunday" ? "Sunday Service" : "Bible Study"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleSaveAttendanceRow(row.id)}
-                        disabled={loading}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                      >
-                        Save Changes
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-blue-600/20 border border-blue-500/30 rounded-lg p-3">
-                        <label className="text-xs text-slate-400 font-medium block mb-2">Present</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={attendanceEdits[row.id]?.present ?? row.total_members_present}
-                          onChange={(e) => handleEditTotals(row.id, "present", e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-700 border border-blue-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
-                        />
-                      </div>
-                      <div className="bg-orange-600/20 border border-orange-500/30 rounded-lg p-3">
-                        <label className="text-xs text-slate-400 font-medium block mb-2">Absent</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={attendanceEdits[row.id]?.absent ?? row.total_members_absent}
-                          onChange={(e) => handleEditTotals(row.id, "absent", e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-700 border border-orange-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm font-semibold"
-                        />
-                      </div>
-                      <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-lg p-3">
-                        <label className="text-xs text-slate-400 font-medium block mb-2">Visitors</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={attendanceEdits[row.id]?.visitors ?? row.total_visitors}
-                          onChange={(e) => handleEditTotals(row.id, "visitors", e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-700 border border-emerald-500/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Quarterly Report Display */}
         {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
