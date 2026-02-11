@@ -268,29 +268,30 @@ export async function getMemberAttendanceForDateAndService(
     return [];
   }
   
-  // Then get the member records for that attendance
-  const { data, error } = await supabase
+  // Get member_attendance records WITHOUT the join - just the raw attendance data
+  const { data: memberAttendanceData, error: memberError } = await supabase
     .from('member_attendance')
-    .select('*, members(id, name)')
+    .select('member_id, member_name, status')
     .eq('attendance_id', attendanceRecord.id)
     .order('member_name', { ascending: true });
 
-  console.log('👥 Raw member records from DB:', data);
+  console.log('👥 Raw member attendance records from DB:', memberAttendanceData);
   
-  if (error) {
-    console.error('❌ Error fetching member attendance records:', error);
+  if (memberError) {
+    console.error('❌ Error fetching member attendance records:', memberError);
     return [];
   }
 
-  const result = (data || []).map((record: any) => ({
+  const result = (memberAttendanceData || []).map((record: any) => ({
     member_id: record.member_id,
-    member_name: record.members?.name || record.member_name,
+    member_name: record.member_name,
     status: record.status,
   }));
   
   console.log('📤 Mapped result:', result);
   
   return result;
+}
 }
 
 // Get attendance history for a class
