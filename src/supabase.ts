@@ -292,7 +292,6 @@ export async function getMemberAttendanceForDateAndService(
   
   return result;
 }
-}
 
 // Get attendance history for a class
 export async function getClassAttendanceHistory(classNumber: number, limit = 10) {
