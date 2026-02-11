@@ -83,7 +83,11 @@ export default function Login({ onLogin }: LoginProps) {
       }
 
       if (leaders && leaders.length > 0) {
+        const leader = leaders[0];
         onLogin(classNum, password.trim());
+        // Store leader info for profile access
+        localStorage.setItem('classLeaderId', leader.id);
+        localStorage.setItem('classLeaderName', leader.full_name || '');
       } else {
         setError('Invalid class number or password. Please try again.');
       }

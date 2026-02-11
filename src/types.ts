@@ -21,14 +21,14 @@ export type ServiceType = 'sunday' | 'bible-study';
 
 export interface AttendanceRecord {
   id?: string;
-  classNumber: string;
-  attendanceDate: string;
-  serviceType: ServiceType;
-  classLeaderId?: string;
-  classLeaderName?: string;
-  totalMembersPresent?: number;
-  totalMembersAbsent?: number;
-  totalVisitors?: number;
+  class_number: string;
+  attendance_date: string;
+  service_type: ServiceType;
+  class_leader_id?: string;
+  class_leader_name?: string;
+  total_members_present?: number;
+  total_members_absent?: number;
+  total_visitors?: number;
   created_at?: string;
 }
 
@@ -57,6 +57,8 @@ export interface ClassSession {
   classNumber: number;
   accessCode: string;
   loginTime: string;
+  classLeaderId?: string;
+  classLeaderName?: string;
 }
 
 export interface ClassLeader {

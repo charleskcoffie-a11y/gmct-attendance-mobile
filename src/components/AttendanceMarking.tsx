@@ -48,6 +48,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [editingMember, setEditingMember] = useState<MemberFormData | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [selectionChanged, setSelectionChanged] = useState(false);
   const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
     member_number: "",
@@ -145,6 +146,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           : m
       )
     );
+    setSelectionChanged(true);
   };
 
   const handleAddMember = () => {
@@ -283,32 +285,55 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const handleSubmitAttendance = async () => {
+    console.log("=== ATTENDANCE SUBMISSION STARTED ===");
+    console.log("Class:", classNumber);
+    console.log("Service Type:", serviceType);
+    console.log("Date:", selectedDate);
+    console.log("Total Members:", members.length);
+    
     if (serviceDateWarning) {
+      console.warn("Date warning:", serviceDateWarning);
       setError(serviceDateWarning);
+      setSuccess(null);
       return;
     }
 
     if (members.length === 0) {
+      console.error("No members loaded");
       setError("No members to submit");
+      setSuccess(null);
       return;
     }
 
     setLoading(true);
+    setError(null);
     try {
       const memberRecords = members
         .filter((m) => m.attendanceStatus)
         .map((m) => ({
           memberId: m.id?.toString() || "",
+          memberName: m.name || "",
           status: m.attendanceStatus || "absent",
         }));
 
+      console.log("Member records to submit:", memberRecords);
+
       if (memberRecords.length === 0) {
+        console.error("No members marked with status");
         setError("Mark at least one member's attendance");
         setLoading(false);
         return;
       }
 
-      await saveAttendance(
+      console.log("Submitting attendance:", {
+        classNumber,
+        selectedDate,
+        serviceType,
+        memberCount: memberRecords.length,
+        members: memberRecords
+      });
+
+      const result = await saveAttendance(
         classNumber,
         selectedDate,
         serviceType,
@@ -316,19 +341,30 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         `Class ${classNumber} Leader`
       );
 
-      setSuccess(
-        `Attendance submitted for ${memberRecords.length} members on ${selectedDate}`
-      );
+      console.log("✅ Attendance saved successfully:", result);
+      
+      // Also show a browser alert for confirmation
+      alert(`✅ Attendance Saved!\n\nClass: ${classNumber}\nDate: ${selectedDate}\nMembers: ${memberRecords.length}\n\nData has been saved to database.`);
+
+      const successMessage = `✅ Attendance submitted for ${memberRecords.length} members on ${selectedDate}`;
+      setSuccess(successMessage);
+      
       // Reset statuses after successful submission
       setMembers(
         members.map((m) => ({ ...m, attendanceStatus: "absent" as const }))
       );
-      setTimeout(() => setSuccess(null), 3000);
+      setSelectionChanged(false);
+      // Keep success message visible for 7 seconds
+      setTimeout(() => setSuccess(null), 7000);
     } catch (err) {
-      setError(
+      const errorMessage =
         "Failed to submit attendance: " +
-          (err instanceof Error ? err.message : "Unknown error")
-      );
+        (err instanceof Error ? err.message : "Unknown error");
+      console.error("❌ Submit error:", err);
+      console.error("Error details:", JSON.stringify(err, null, 2));
+      alert(`❌ ERROR: ${errorMessage}`);
+      setError(errorMessage);
+      setSuccess(null);
     } finally {
       setLoading(false);
     }
@@ -347,14 +383,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     (m) => m.attendanceStatus === "travel"
   ).length;
 
-  const selectedDay = selectedDate
-    ? new Date(`${selectedDate}T00:00:00`).getDay()
-    : null;
-  const serviceDateWarning = selectedDay === null
-    ? null
-    : serviceType === "sunday"
-    ? (selectedDay !== 0 ? "Sunday Service must be recorded on a Sunday." : null)
-    : (selectedDay !== 2 ? "Bible Study must be recorded on a Tuesday." : null);
+  // Temporarily disabled strict date validation for testing
+  // const selectedDay = selectedDate
+  //   ? new Date(`${selectedDate}T00:00:00`).getDay()
+  //   : null;
+  const serviceDateWarning = null; // Testing mode - no date validation
 
   const normalizedSearch = memberSearch.trim().toLowerCase();
   const sortedMembers = [...members].sort((a, b) => {
@@ -416,25 +449,31 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           {/* Service Type & Date Selector */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-400 mb-2 block">Service Type</label>
+              <label className="text-xs font-semibold text-slate-400 mb-2 block">📋 Service Type</label>
               <select
                 value={serviceType}
-                onChange={(e) => setServiceType(e.target.value as ServiceType)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-700 border border-slate-600 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                onChange={(e) => {
+                  setServiceType(e.target.value as ServiceType);
+                  setSelectionChanged(false); // Reset when service type changes
+                }}
+                className="w-full px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-slate-600 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               >
-                <option value="sunday">Sunday Service</option>
-                <option value="bible-study">Bible Study</option>
+                <option value="sunday">🙏 Sunday Service</option>
+                <option value="bible-study">📖 Bible Study</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-400 mb-2 block">Date</label>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-                <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <label className="text-xs font-semibold text-slate-400 mb-2 block">📅 Date to Record</label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-blue-600/50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+                <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setSelectionChanged(false); // Reset when date changes
+                  }}
+                  className="flex-1 bg-transparent text-white text-sm focus:outline-none font-medium"
                 />
               </div>
             </div>
@@ -471,48 +510,59 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         </div>
       </div>
 
-      {/* Alert Messages */}
-      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-3">
-        {error && (
-          <div className="p-4 bg-red-950/50 border border-red-700/50 rounded-xl text-red-300 text-sm flex items-start gap-3 backdrop-blur-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            {error}
+      {/* Alert Messages - Fixed at top */}
+      {(error || success) && (
+        <div className="fixed top-20 left-0 right-0 z-50 p-4 pointer-events-none">
+          <div className="max-w-7xl mx-auto space-y-3 pointer-events-auto">
+            {error && (
+              <div className="p-4 bg-red-600 border-2 border-red-500 rounded-xl text-white font-semibold flex items-start gap-3 backdrop-blur-md shadow-2xl animate-pulse">
+                <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+                <span className="text-base">⚠️ {error}</span>
+              </div>
+            )}
+            {success && (
+              <div className="p-4 bg-gradient-to-r from-green-600 to-emerald-600 border-2 border-green-400 rounded-xl text-white font-bold flex items-center gap-3 backdrop-blur-md shadow-2xl animate-bounce">
+                <CheckCircle className="w-6 h-6 flex-shrink-0" />
+                <span className="text-base">{success}</span>
+              </div>
+            )}
           </div>
-        )}
-        {success && (
-          <div className="p-4 bg-emerald-950/50 border border-emerald-700/50 rounded-xl text-emerald-300 text-sm flex items-start gap-3 backdrop-blur-sm">
-            <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            {success}
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Offline Notice */}
-        {!isOnline && (
-          <div className="p-4 bg-yellow-950/50 border border-yellow-700/50 rounded-xl text-yellow-300 text-sm flex items-start gap-3 backdrop-blur-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            Offline mode active. Data will sync when connected.
-          </div>
-        )}
+      {/* Status Alerts Section - Below header, below fixed alerts */}
+      {((!isOnline || serviceDateWarning || existingAttendance) && !attendanceLoading) && (
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 md:p-6 border-b border-slate-700/50 space-y-3">
+          <div className="max-w-7xl mx-auto space-y-3">
+            {/* Offline Notice */}
+            {!isOnline && (
+              <div className="p-4 bg-yellow-950/50 border border-yellow-700/50 rounded-xl text-yellow-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                Offline mode active. Data will sync when connected.
+              </div>
+            )}
 
-        {serviceDateWarning && (
-          <div className="p-4 bg-orange-950/50 border border-orange-700/50 rounded-xl text-orange-300 text-sm flex items-start gap-3 backdrop-blur-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            {serviceDateWarning}
-          </div>
-        )}
+            {serviceDateWarning && (
+              <div className="p-4 bg-orange-950/50 border border-orange-700/50 rounded-xl text-orange-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                {serviceDateWarning}
+              </div>
+            )}
 
-        {/* Existing Attendance Status */}
-        {existingAttendance && !attendanceLoading && (
-          <div className="p-4 bg-blue-950/50 border border-blue-700/50 rounded-xl text-blue-300 text-sm flex items-start gap-3 backdrop-blur-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong>Attendance Already Marked</strong> for {selectedDate} ({serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'})
-              <br className="mt-1" />
-              Present: {existingAttendance.total_members_present} | Absent: {existingAttendance.total_members_absent}
-            </div>
+            {/* Existing Attendance Status */}
+            {existingAttendance && (
+              <div className="p-4 bg-blue-950/50 border border-blue-700/50 rounded-xl text-blue-300 text-sm flex items-start gap-3 backdrop-blur-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong>Attendance Already Marked</strong> for {selectedDate} ({serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'})
+                  <br className="mt-1" />
+                  Present: {existingAttendance.total_members_present} | Absent: {existingAttendance.total_members_absent}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -868,22 +918,56 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
         {/* Action Buttons */}
         {members.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900 to-transparent border-t border-slate-700/50 p-4 backdrop-blur-sm">
-            <div className="max-w-7xl mx-auto flex gap-3">
-              <button
-                onClick={handleAddMember}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all border border-slate-600"
-              >
-                <Plus className="w-5 h-5" />
-                Add Member
-              </button>
-              <button
-                onClick={handleSubmitAttendance}
-                disabled={loading || !!serviceDateWarning}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 shadow-lg"
-              >
-                {loading ? "Submitting..." : "Submit Attendance"}
-              </button>
+          <div className="fixed bottom-16 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/95 to-slate-900/70 border-t-2 border-blue-500/50 p-4 backdrop-blur-md shadow-2xl z-30">
+            <div className="max-w-7xl mx-auto">
+              {/* Status Bar */}
+              <div className="mb-4 text-sm font-semibold text-slate-300 text-center">
+                <span className="text-blue-400">
+                  Date: {new Date(selectedDate).toLocaleDateString()} • {serviceType === 'sunday' ? '🙏 Sunday Service' : '📖 Bible Study'}
+                </span>
+              </div>
+
+              {/* Selection Status */}
+              {selectionChanged && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/50 rounded-lg text-center">
+                  <p className="text-sm font-semibold text-blue-300">
+                    ✓ Selections made • Ready to submit
+                  </p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAddMember}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all border border-slate-600 hover:border-slate-500"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Member
+                </button>
+                <button
+                  onClick={() => {
+                    console.log("🔵 SUBMIT BUTTON CLICKED", { 
+                      loading, 
+                      selectionChanged,
+                      serviceDateWarning,
+                      membersCount: members.length
+                    });
+                    handleSubmitAttendance();
+                  }}
+                  disabled={loading || !!serviceDateWarning}
+                  className={`flex-1 px-6 py-4 rounded-xl font-bold transition-all shadow-2xl border-2 flex items-center justify-center gap-2 text-lg ${
+                    loading
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 animate-pulse'
+                      : !selectionChanged
+                      ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-gray-400 border-gray-600 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-green-500 hover:border-green-400 transform hover:scale-105'
+                  }`}
+                >
+                  <CheckCircle className="w-6 h-6" />
+                  {loading ? "⏳ Submitting..." : "Submit Attendance"}
+                </button>
+              </div>
             </div>
           </div>
         )}

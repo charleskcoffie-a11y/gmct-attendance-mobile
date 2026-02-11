@@ -636,57 +636,33 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
 
         {/* Analytics Cards */}
         {activeTab !== "manual" && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-6">
             {/* Presence Metrics */}
-            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-blue-600/30 rounded-lg">
-                  <Users className="w-4 h-4 text-blue-300" />
+            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-sm rounded-xl border border-blue-500/30 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-blue-600/30 rounded-lg">
+                  <Users className="w-3 h-3 text-blue-300" />
                 </div>
                 <h3 className="text-xs font-semibold text-slate-300">Avg Present</h3>
               </div>
-              <div className="text-2xl font-bold text-blue-300">
+              <div className="text-xl font-bold text-blue-300">
                 {attendanceTotals.records ? Math.round(attendanceTotals.present / attendanceTotals.records) : 0}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Over {attendanceTotals.records} records</p>
+              <p className="text-xs text-slate-400 mt-0.5">{attendanceTotals.records} records</p>
             </div>
 
             {/* Absence Metrics */}
-            <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-sm rounded-2xl border border-orange-500/30 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-orange-600/30 rounded-lg">
-                  <AlertCircle className="w-4 h-4 text-orange-300" />
+            <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-sm rounded-xl border border-orange-500/30 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-orange-600/30 rounded-lg">
+                  <AlertCircle className="w-3 h-3 text-orange-300" />
                 </div>
                 <h3 className="text-xs font-semibold text-slate-300">Avg Absent</h3>
               </div>
-              <div className="text-2xl font-bold text-orange-300">
+              <div className="text-xl font-bold text-orange-300">
                 {attendanceTotals.records ? Math.round(attendanceTotals.absent / attendanceTotals.records) : 0}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Over {attendanceTotals.records} records</p>
-            </div>
-
-            {/* Visitors Metrics */}
-            <div className="bg-gradient-to-br from-emerald-600/20 to-teal-600/20 backdrop-blur-sm rounded-2xl border border-emerald-500/30 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-emerald-600/30 rounded-lg">
-                  <TrendingUp className="w-4 h-4 text-emerald-300" />
-                </div>
-                <h3 className="text-xs font-semibold text-slate-300">Total Visitors</h3>
-              </div>
-              <div className="text-2xl font-bold text-emerald-300">{attendanceTotals.visitors}</div>
-              <p className="text-xs text-slate-400 mt-1">Recorded visitors</p>
-            </div>
-
-            {/* Members Travelled */}
-            <div className="bg-gradient-to-br from-violet-600/20 to-purple-600/20 backdrop-blur-sm rounded-2xl border border-violet-500/30 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-violet-600/30 rounded-lg">
-                  <Calendar className="w-4 h-4 text-violet-300" />
-                </div>
-                <h3 className="text-xs font-semibold text-slate-300">Travelled</h3>
-              </div>
-              <div className="text-2xl font-bold text-violet-300">—</div>
-              <p className="text-xs text-slate-400 mt-1">From manual reports</p>
+              <p className="text-xs text-slate-400 mt-0.5">{attendanceTotals.records} records</p>
             </div>
           </div>
         )}

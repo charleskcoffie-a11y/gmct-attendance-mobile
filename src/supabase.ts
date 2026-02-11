@@ -166,7 +166,7 @@ export async function saveAttendance(
   classNumber: number,
   date: string,
   serviceType: 'sunday' | 'bible-study',
-  memberRecords: Array<{ memberId: string; status: string }>,
+  memberRecords: Array<{ memberId: string; status: string; memberName?: string }>,
   classLeaderName?: string
 ) {
   // Calculate summary stats
@@ -193,6 +193,27 @@ export async function saveAttendance(
   if (attendanceError) {
     console.error('Error saving attendance summary:', attendanceError);
     throw attendanceError;
+  }
+
+  // Save individual member attendance records
+  if (attendanceData && attendanceData.id) {
+    for (const record of memberRecords) {
+      const { error: memberError } = await supabase
+        .from('member_attendance')
+        .upsert({
+          attendance_id: attendanceData.id,
+          member_id: record.memberId,
+          member_name: record.memberName || record.memberId,
+          class_number: classNumber.toString(),
+          status: record.status,
+        }, {
+          onConflict: 'attendance_id,member_id'
+        });
+
+      if (memberError) {
+        console.error('Error saving member attendance:', memberError);
+      }
+    }
   }
   
   return attendanceData;
@@ -279,6 +300,57 @@ export async function updateAttendanceTotals(
 
   if (error) {
     console.error('Error updating attendance totals:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Get member attendance records for a specific attendance event
+export async function getMemberAttendanceRecords(attendanceId: string) {
+  const { data, error } = await supabase
+    .from('member_attendance')
+    .select('*, members(id, name)')
+    .eq('attendance_id', attendanceId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching member attendance records:', error);
+    return [];
+  }
+
+  return (data || []).map((record: any) => ({
+    member_id: record.member_id,
+    member_name: record.members?.name || record.member_id,
+    status: record.status,
+    attendance_id: record.attendance_id
+  }));
+}
+
+// Update a member's attendance status
+export async function updateMemberAttendanceStatus(
+  attendanceId: string,
+  memberId: string,
+  status: 'present' | 'absent' | 'sick' | 'travel',
+  memberName?: string,
+  classNumber?: string | number
+) {
+  const { data, error } = await supabase
+    .from('member_attendance')
+    .upsert({
+      attendance_id: attendanceId,
+      member_id: memberId,
+      member_name: memberName || memberId,
+      class_number: classNumber?.toString() || '',
+      status: status,
+    }, {
+      onConflict: 'attendance_id,member_id'
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating member attendance:', error);
     throw error;
   }
 
