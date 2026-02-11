@@ -94,35 +94,46 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   }, [classNumber]);
 
   // Set initial date and service type if provided (for editing records)
+  // This triggers first when editing
   useEffect(() => {
     if (initialDate) {
+      console.log('Edit mode detected, setting date and service type');
       setSelectedDate(initialDate);
     }
     if (initialServiceType) {
       setServiceType(initialServiceType as ServiceType);
     }
+    if (initialDate || initialServiceType) {
+      setIsEditMode(true);
+    }
   }, [initialDate, initialServiceType]);
 
   // Apply initial member statuses when editing an existing record
+  // This runs AFTER members have been loaded
   useEffect(() => {
     if (initialMemberStatuses && initialMemberStatuses.length > 0) {
       console.log('Applying initial member statuses:', initialMemberStatuses);
       console.log('Current members:', members);
       
+      // Wait for members to load
       if (members.length === 0) {
-        console.warn('No members loaded yet, skipping initial status application');
+        console.warn('Members not loaded yet, will retry...');
         return;
       }
 
+      console.log('Matching member statuses...');
       const updatedMembers = members.map((member) => {
         const existingStatus = initialMemberStatuses.find(
-          (s) => 
-            String(s.member_id) === String(member.id) || 
-            s.member_name?.toLowerCase() === member.name?.toLowerCase()
+          (s) => {
+            const idMatch = String(s.member_id) === String(member.id);
+            const nameMatch = s.member_name?.toLowerCase() === member.name?.toLowerCase();
+            console.log(`Checking ${member.name} - ID match: ${idMatch} (${s.member_id} vs ${member.id}), Name match: ${nameMatch}`);
+            return idMatch || nameMatch;
+          }
         );
         
         if (existingStatus) {
-          console.log(`Matched member ${member.name}: ${existingStatus.status}`);
+          console.log(`✅ Matched member ${member.name}: ${existingStatus.status}`);
         }
         
         return {
@@ -135,7 +146,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       setSelectionChanged(false);
       setIsEditMode(true);
     }
-  }, [initialMemberStatuses]);
+  }, [initialMemberStatuses, members]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {
