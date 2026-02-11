@@ -58,7 +58,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
     const grouped: GroupedRecords = {};
 
     records.forEach((record) => {
-      const date = new Date(record.attendance_date || "");
+      const date = new Date((record.attendance_date || "") + "T00:00:00");
       const year = date.getFullYear();
       const month = date.getMonth();
 
@@ -243,7 +243,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                             {expandedMonths.has(monthKey) && (
                               <div className="border-t border-slate-600 bg-slate-800/50 p-3 space-y-3">
                                 {monthRecords
-                                  .sort((a, b) => new Date(b.attendance_date || "").getTime() - new Date(a.attendance_date || "").getTime())
+                                  .sort((a, b) => new Date((b.attendance_date || "") + "T00:00:00").getTime() - new Date((a.attendance_date || "") + "T00:00:00").getTime())
                                   .map((record) => (
                                     <div
                                       key={record.id}
@@ -256,7 +256,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                                               <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
                                               <div>
                                                 <span className="font-bold text-white text-lg">
-                                                  {new Date(record.attendance_date || "").toLocaleDateString(
+                                                  {new Date((record.attendance_date || "") + "T00:00:00").toLocaleDateString(
                                                     "en-US",
                                                     {
                                                       weekday: "short",
