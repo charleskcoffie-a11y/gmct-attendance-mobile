@@ -62,6 +62,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [editingMember, setEditingMember] = useState<MemberFormData | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectionChanged, setSelectionChanged] = useState(false);
+  const initialStatusesAppliedRef = React.useRef(false);
   const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
     member_number: "",
@@ -109,40 +110,56 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   }, [initialDate, initialServiceType]);
 
   // Apply initial member statuses when editing an existing record
-  // This runs AFTER members have been loaded
-  // Only depends on initialMemberStatuses - NOT on members!
-  // This prevents the effect from re-running and resetting selections when user clicks members
+  // Wait for BOTH members to load AND initialMemberStatuses to arrive
+  // Only apply once per edit session (track with ref)
   useEffect(() => {
-    if (initialMemberStatuses && initialMemberStatuses.length > 0 && members.length > 0) {
-      console.log('Applying initial member statuses:', initialMemberStatuses);
-      console.log('Current members:', members);
-
-      console.log('Matching member statuses...');
-      const updatedMembers = members.map((member) => {
-        const existingStatus = initialMemberStatuses.find(
-          (s) => {
-            const idMatch = String(s.member_id) === String(member.id);
-            const nameMatch = s.member_name?.toLowerCase() === member.name?.toLowerCase();
-            console.log(`Checking ${member.name} - ID match: ${idMatch} (${s.member_id} vs ${member.id}), Name match: ${nameMatch}`);
-            return idMatch || nameMatch;
-          }
-        );
-        
-        if (existingStatus) {
-          console.log(`✅ Matched member ${member.name}: ${existingStatus.status}`);
-        }
-        
-        return {
-          ...member,
-          attendanceStatus: (existingStatus?.status as any) || 'absent',
-        };
-      });
-      console.log('Updated members with statuses:', updatedMembers);
-      setMembers(updatedMembers);
-      setSelectionChanged(false);
-      setIsEditMode(true);
+    // Reset ref when initialMemberStatuses changes (new edit session)
+    if (!initialMemberStatuses || initialMemberStatuses.length === 0) {
+      initialStatusesAppliedRef.current = false;
+      return;
     }
-  }, [initialMemberStatuses]);
+
+    // Don't apply if already applied
+    if (initialStatusesAppliedRef.current) {
+      return;
+    }
+
+    // Wait for members to load
+    if (members.length === 0) {
+      console.log('Waiting for members to load before applying initial statuses...');
+      return;
+    }
+
+    console.log('Applying initial member statuses:', initialMemberStatuses);
+    console.log('Current members:', members);
+
+    const updatedMembers = members.map((member) => {
+      const existingStatus = initialMemberStatuses.find(
+        (s) => {
+          const idMatch = String(s.member_id) === String(member.id);
+          const nameMatch = s.member_name?.toLowerCase() === member.name?.toLowerCase();
+          return idMatch || nameMatch;
+        }
+      );
+      
+      if (existingStatus) {
+        console.log(`✅ Matched member ${member.name}: ${existingStatus.status}`);
+      }
+      
+      return {
+        ...member,
+        attendanceStatus: (existingStatus?.status as any) || 'absent',
+      };
+    });
+    
+    console.log('Updated members with statuses:', updatedMembers);
+    setMembers(updatedMembers);
+    setSelectionChanged(false);
+    setIsEditMode(true);
+    
+    // Mark that we've applied the initial statuses
+    initialStatusesAppliedRef.current = true;
+  }, [initialMemberStatuses, members.length]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {
