@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
-import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService } from "../supabase";
+import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService, checkWeeklyAttendance } from "../supabase";
 import { Member, ServiceType } from "../types";
-import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle, LogOut, BarChart3, Users } from "lucide-react";
+import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle, LogOut, BarChart3, Users, AlertTriangle } from "lucide-react";
 
 interface AttendanceMarkingProps {
   classNumber: number;
@@ -36,10 +36,17 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   onBackToClasses,
   isAdminView,
 }) => {
+  // Helper function to get local date string in YYYY-MM-DD format
+  const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [serviceType, setServiceType] = useState<ServiceType>("sunday");
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +70,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   });
   const [existingAttendance, setExistingAttendance] = useState<any>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [weeklyDuplicateWarning, setWeeklyDuplicateWarning] = useState<any>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   useEffect(() => {
     loadMembers();
@@ -79,8 +88,22 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   // Load attendance for the selected date and service type
   useEffect(() => {
+    // Reset modal when date/service changes
+    setShowDuplicateModal(false);
     loadAttendanceRecord();
   }, [selectedDate, serviceType]);
+
+  // Ensure date is always today's date (in case app runs past midnight)
+  useEffect(() => {
+    const checkDateUpdate = setInterval(() => {
+      const todayDate = getLocalDateString();
+      if (selectedDate !== todayDate) {
+        setSelectedDate(todayDate);
+      }
+    }, 60000); // Check every minute
+    
+    return () => clearInterval(checkDateUpdate);
+  }, [selectedDate]);
 
   const loadMembers = async () => {
     setLoading(true);
@@ -104,9 +127,23 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   const loadAttendanceRecord = async () => {
     setAttendanceLoading(true);
+    setWeeklyDuplicateWarning(null);
     try {
+      // Check for attendance on the exact date/service combo
       const record = await getAttendanceByDateAndService(classNumber, selectedDate, serviceType);
       setExistingAttendance(record);
+      
+      // Also check for any attendance in the same week for this service type
+      const weeklyRecord = await checkWeeklyAttendance(classNumber, selectedDate, serviceType);
+      
+      if (weeklyRecord) {
+        // There's attendance in this week for the same service type
+        setWeeklyDuplicateWarning({
+          date: weeklyRecord.attendance_date,
+          totalMembers: weeklyRecord.total_members_present || 0,
+          hasOtherRecord: true
+        });
+      }
       
       if (record) {
         // Update member statuses based on existing attendance
@@ -139,6 +176,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const pad2 = (value: number) => String(value).padStart(2, "0");
 
   const updateMemberStatus = (memberId: string, status: string) => {
+    // If duplicate warning exists, show modal and block selection
+    if (weeklyDuplicateWarning?.hasOtherRecord) {
+      setShowDuplicateModal(true);
+      return;
+    }
+    
+    // Otherwise, update member status normally
     setMembers(
       members.map((m) =>
         m.id === memberId
@@ -343,11 +387,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
       console.log("✅ Attendance saved successfully:", result);
       
-      // Also show a browser alert for confirmation
-      alert(`✅ Attendance Saved!\n\nClass: ${classNumber}\nDate: ${selectedDate}\nMembers: ${memberRecords.length}\n\nData has been saved to database.`);
-
-      const successMessage = `✅ Attendance submitted for ${memberRecords.length} members on ${selectedDate}`;
+      const successMessage = `✅ ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance submitted for ${memberRecords.length} members on ${selectedDate}`;
       setSuccess(successMessage);
+      
+      // Reset warnings
+      setWeeklyDuplicateWarning(null);
+      setShowDuplicateModal(false);
       
       // Reset statuses after successful submission
       setMembers(
@@ -464,16 +509,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-400 mb-2 block">📅 Date to Record</label>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-blue-600/50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-blue-600/50 transition-all">
                 <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setSelectionChanged(false); // Reset when date changes
-                  }}
-                  className="flex-1 bg-transparent text-white text-sm focus:outline-none font-medium"
+                  disabled
+                  className="flex-1 bg-transparent text-white text-sm focus:outline-none font-medium cursor-not-allowed opacity-90"
                 />
               </div>
             </div>
@@ -830,13 +872,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
             <p className="text-slate-400 mb-6 text-sm">
               {members.length === 0 ? "No members in this class yet" : "No members match your search"}
             </p>
-            <button
-              onClick={handleAddMember}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all shadow-lg"
-            >
-              <Plus className="w-5 h-5" />
-              Add First Member
-            </button>
+            {isAdminView && (
+              <button
+                onClick={handleAddMember}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold transition-all shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                Add First Member
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3 mb-6">
@@ -861,12 +905,14 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     >
                       <Edit2 className="w-4 h-4 text-blue-400" />
                     </button>
-                    <button
-                      onClick={() => handleDeleteMember(member.id!)}
-                      className="p-2.5 hover:bg-red-600/20 rounded-lg transition border border-transparent hover:border-red-500/30"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
+                    {isAdminView && (
+                      <button
+                        onClick={() => handleDeleteMember(member.id!)}
+                        className="p-2.5 hover:bg-red-600/20 rounded-lg transition border border-transparent hover:border-red-500/30"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -923,7 +969,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               {/* Status Bar */}
               <div className="mb-4 text-sm font-semibold text-slate-300 text-center">
                 <span className="text-blue-400">
-                  Date: {new Date(selectedDate).toLocaleDateString()} • {serviceType === 'sunday' ? '🙏 Sunday Service' : '📖 Bible Study'}
+                  Date: {new Date(selectedDate + 'T00:00:00').toLocaleDateString()} • {serviceType === 'sunday' ? '🙏 Sunday Service' : '📖 Bible Study'}
                 </span>
               </div>
 
@@ -938,13 +984,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
               {/* Buttons */}
               <div className="flex gap-3">
-                <button
-                  onClick={handleAddMember}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all border border-slate-600 hover:border-slate-500"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add Member
-                </button>
+                {isAdminView && (
+                  <button
+                    onClick={handleAddMember}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all border border-slate-600 hover:border-slate-500"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Add Member
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     console.log("🔵 SUBMIT BUTTON CLICKED", { 
@@ -955,7 +1003,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     });
                     handleSubmitAttendance();
                   }}
-                  disabled={loading || !!serviceDateWarning}
+                  disabled={loading || !!serviceDateWarning || !!weeklyDuplicateWarning?.hasOtherRecord}
                   className={`flex-1 px-6 py-4 rounded-xl font-bold transition-all shadow-2xl border-2 flex items-center justify-center gap-2 text-lg ${
                     loading
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 animate-pulse'
@@ -971,12 +1019,62 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
             </div>
           </div>
         )}
+
+        {/* Weekly Duplicate Warning Modal */}
+        {showDuplicateModal && weeklyDuplicateWarning && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl shadow-2xl border border-yellow-500/30 p-6 md:p-8 max-w-md w-full animate-in scale-100">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 bg-yellow-500/20 rounded-lg flex-shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-yellow-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    Already Recorded This Week
+                  </h3>
+                  <p className="text-slate-300 text-sm">
+                    A {serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded for this week.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-700/50 rounded-xl p-4 mb-6 border border-yellow-500/20">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Previous Recording:</span>
+                    <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.date}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Members Recorded:</span>
+                    <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.totalMembers} members</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Current Week:</span>
+                    <span className="text-yellow-300 font-semibold">Sunday - Saturday</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-slate-400 text-sm mb-6">
+                A {serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded on {weeklyDuplicateWarning?.date}. You cannot record another one for this week. Please select a different date or service type.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDuplicateModal(false);
+                  }}
+                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition border border-blue-500 transform hover:scale-105"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default AttendanceMarking;
-
-
-

@@ -281,6 +281,41 @@ export async function getAttendanceRange(
   return data || [];
 }
 
+// Check for existing attendance in the same week for a service type
+export async function checkWeeklyAttendance(
+  classNumber: number,
+  date: string,
+  serviceType: 'sunday' | 'bible-study'
+) {
+  // Calculate week boundaries (Sunday to Saturday)
+  const currentDate = new Date(date);
+  const dayOfWeek = currentDate.getDay();
+  const startOfWeek = new Date(currentDate);
+  startOfWeek.setDate(currentDate.getDate() - dayOfWeek); // Set to Sunday
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6); // Set to Saturday
+  
+  const startDate = startOfWeek.toISOString().split('T')[0];
+  const endDate = endOfWeek.toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('class_number', classNumber.toString())
+    .eq('service_type', serviceType)
+    .gte('attendance_date', startDate)
+    .lte('attendance_date', endDate)
+    .order('attendance_date', { ascending: false });
+  
+  if (error) {
+    console.error('Error checking weekly attendance:', error);
+    return null;
+  }
+  
+  // Return the most recent attendance record for that week and service type
+  return data && data.length > 0 ? data[0] : null;
+}
+
 // Update attendance totals
 export async function updateAttendanceTotals(
   attendanceId: string,
