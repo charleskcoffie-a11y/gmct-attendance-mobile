@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/gmct-attendance-mobile/',
+  base: '/',
   plugins: [
     react(),
     VitePWA({
@@ -18,8 +18,8 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/gmct-attendance-mobile/',
-        start_url: '/gmct-attendance-mobile/',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-512x512.svg',
