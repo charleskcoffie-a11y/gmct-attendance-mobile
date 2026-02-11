@@ -105,15 +105,26 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   // Apply initial member statuses when editing an existing record
   useEffect(() => {
-    if (initialMemberStatuses && initialMemberStatuses.length > 0 && members.length > 0) {
+    if (initialMemberStatuses && initialMemberStatuses.length > 0) {
       console.log('Applying initial member statuses:', initialMemberStatuses);
+      console.log('Current members:', members);
+      
+      if (members.length === 0) {
+        console.warn('No members loaded yet, skipping initial status application');
+        return;
+      }
+
       const updatedMembers = members.map((member) => {
         const existingStatus = initialMemberStatuses.find(
           (s) => 
-            s.member_id === String(member.id) || 
-            s.member_id === member.id ||
+            String(s.member_id) === String(member.id) || 
             s.member_name?.toLowerCase() === member.name?.toLowerCase()
         );
+        
+        if (existingStatus) {
+          console.log(`Matched member ${member.name}: ${existingStatus.status}`);
+        }
+        
         return {
           ...member,
           attendanceStatus: (existingStatus?.status as any) || 'absent',
@@ -121,10 +132,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       });
       console.log('Updated members with statuses:', updatedMembers);
       setMembers(updatedMembers);
-      setSelectionChanged(true);
+      setSelectionChanged(false);
       setIsEditMode(true);
     }
-  }, [initialMemberStatuses, members.length]);
+  }, [initialMemberStatuses]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {
@@ -382,7 +393,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     console.log("Class:", classNumber);
     console.log("Service Type:", serviceType);
     console.log("Date:", selectedDate);
+    console.log("Edit Mode:", isEditMode);
     console.log("Total Members:", members.length);
+    console.log("Members with statuses:", members.map(m => ({ name: m.name, status: m.attendanceStatus })));
     
     if (serviceDateWarning) {
       console.warn("Date warning:", serviceDateWarning);
@@ -410,6 +423,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         }));
 
       console.log("Member records to submit:", memberRecords);
+      console.log("Present count:", memberRecords.filter(r => r.status === 'present').length);
+      console.log("Absent count:", memberRecords.filter(r => r.status === 'absent').length);
 
       if (memberRecords.length === 0) {
         console.error("No members marked with status");
@@ -436,18 +451,24 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
       console.log("✅ Attendance saved successfully:", result);
       
-      const successMessage = `✅ ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance submitted for ${memberRecords.length} members on ${selectedDate}`;
+      const successMessage = `✅ ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance ${ isEditMode ? 'updated' : 'submitted'} for ${memberRecords.length} members on ${selectedDate}`;
       setSuccess(successMessage);
       
       // Reset warnings
       setWeeklyDuplicateWarning(null);
       setShowDuplicateModal(false);
       
-      // Reset statuses after successful submission
-      setMembers(
-        members.map((m) => ({ ...m, attendanceStatus: "absent" as const }))
-      );
-      setSelectionChanged(false);
+      // Only reset statuses if NOT in edit mode
+      if (!isEditMode) {
+        setMembers(
+          members.map((m) => ({ ...m, attendanceStatus: "absent" as const }))
+        );
+        setSelectionChanged(false);
+      } else {
+        // In edit mode, clear edit mode after successful update
+        setIsEditMode(false);
+      }
+      
       // Keep success message visible for 7 seconds
       setTimeout(() => setSuccess(null), 7000);
     } catch (err) {
