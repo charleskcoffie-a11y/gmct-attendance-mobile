@@ -291,7 +291,6 @@ export async function getMemberAttendanceForDateAndService(
   console.log('📤 Mapped result:', result);
   
   return result;
-  }));
 }
 
 // Get attendance history for a class
