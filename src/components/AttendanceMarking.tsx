@@ -427,7 +427,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     console.log("=== ATTENDANCE SUBMISSION STARTED ===");
     console.log("Class:", classNumber);
     console.log("Service Type:", serviceType);
-    console.log("Date:", selectedDate);
+    console.log("selectedDate value:", selectedDate);
+    console.log("Date parsed as:", new Date(selectedDate + 'T00:00:00'));
+    console.log("Local date string (for comparison):", getLocalDateString());
+    console.log("Current browser date:", new Date());
     console.log("Edit Mode:", isEditMode);
     console.log("Total Members:", members.length);
     console.log("Members with statuses:", members.map(m => ({ name: m.name, status: m.attendanceStatus })));
