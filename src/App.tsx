@@ -18,6 +18,8 @@ function App() {
   const [classView, setClassView] = useState<'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings'>('attendance');
   const [adminSelectedClass, setAdminSelectedClass] = useState<number | null>(null);
   const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
+  const [editRecordDate, setEditRecordDate] = useState<string | null>(null);
+  const [editRecordServiceType, setEditRecordServiceType] = useState<string>('sunday');
   const adminTabIndex = adminView === 'attendance' ? 0 : adminView === 'class' ? 1 : 2;
   const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : 4;
 
@@ -37,6 +39,14 @@ function App() {
       }
     }
   }, []);
+
+  // Reset edit record state when navigating away from attendance view
+  useEffect(() => {
+    if (classView !== 'attendance') {
+      setEditRecordDate(null);
+      setEditRecordServiceType('sunday');
+    }
+  }, [classView]);
 
   const handleLogin = (classNumber: number, accessCode: string) => {
     const newSession: ClassSession = {
@@ -231,6 +241,8 @@ function App() {
                       onLogout={handleLogout}
                       onShowReports={() => setClassView('reports')}
                       isAdminView={false}
+                      initialDate={editRecordDate || undefined}
+                      initialServiceType={editRecordDate ? editRecordServiceType : undefined}
                     />
                     <SyncManager />
                   </>
@@ -239,6 +251,11 @@ function App() {
                 ) : classView === 'records' ? (
                   <AttendanceRecords
                     classNumber={session.classNumber}
+                    onEditRecord={(date, serviceType) => {
+                      setEditRecordDate(date);
+                      setEditRecordServiceType(serviceType);
+                      setClassView('attendance');
+                    }}
                   />
                 ) : classView === 'reports' ? (
                   <ClassReports

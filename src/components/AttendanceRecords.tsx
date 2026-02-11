@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import { AttendanceRecord } from "../types";
-import { AlertCircle, Calendar, ChevronRight, Users } from "lucide-react";
+import { AlertCircle, Calendar, ChevronRight, Users, Edit } from "lucide-react";
 
 interface AttendanceRecordsProps {
   classNumber: number;
+  onEditRecord?: (date: string, serviceType: string) => void;
 }
 
 interface GroupedRecords {
@@ -15,6 +16,7 @@ interface GroupedRecords {
 
 export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
   classNumber,
+  onEditRecord,
 }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -293,6 +295,13 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                                               </div>
                                             </div>
                                           </div>
+                                          <button
+                                            onClick={() => onEditRecord?.(record.attendance_date, record.service_type || "sunday")}
+                                            className="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/50 active:scale-90 hover:bg-blue-500/30 transition shrink-0"
+                                            title="Edit attendance"
+                                          >
+                                            <Edit className="w-5 h-5" />
+                                          </button>
                                         </div>
                                       </div>
                                     </div>

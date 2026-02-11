@@ -9,6 +9,8 @@ interface AttendanceMarkingProps {
   onShowReports?: () => void;
   onBackToClasses?: () => void;
   isAdminView?: boolean;
+  initialDate?: string;
+  initialServiceType?: string;
 }
 
 interface MemberWithStatus extends Member {
@@ -35,6 +37,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   onShowReports,
   onBackToClasses,
   isAdminView,
+  initialDate,
+  initialServiceType,
 }) => {
   // Helper function to get local date string in YYYY-MM-DD format
   const getLocalDateString = () => {
@@ -85,6 +89,16 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       window.removeEventListener("offline", handleOffline);
     };
   }, [classNumber]);
+
+  // Set initial date and service type if provided (for editing records)
+  useEffect(() => {
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+    if (initialServiceType) {
+      setServiceType(initialServiceType as ServiceType);
+    }
+  }, [initialDate, initialServiceType]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {

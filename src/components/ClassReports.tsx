@@ -640,10 +640,10 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
             ) : (
               <div className="space-y-4">
                 <div className="flex items-end justify-between gap-2 h-40 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
-                  {trendSeries.map((item) => {
+                  {trendSeries.map((item, index) => {
                     const heightPercent = (item.present / maxTrendValue) * 100;
                     return (
-                      <div key={item.date} className="flex-1 flex flex-col items-center gap-2 group h-full">
+                      <div key={`${item.date}-${index}`} className="flex-1 flex flex-col items-center gap-2 group h-full">
                         <div className="h-full flex items-end justify-center w-full">
                           <div
                             className="w-3/4 bg-gradient-to-t from-blue-500 to-blue-300 rounded-t transition-all group-hover:from-blue-400 group-hover:to-blue-200 cursor-pointer"
