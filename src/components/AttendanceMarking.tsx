@@ -104,20 +104,25 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   // Apply initial member statuses when editing an existing record
   useEffect(() => {
-    if (initialMemberStatuses && members.length > 0) {
+    if (initialMemberStatuses && initialMemberStatuses.length > 0 && members.length > 0) {
+      console.log('Applying initial member statuses:', initialMemberStatuses);
       const updatedMembers = members.map((member) => {
         const existingStatus = initialMemberStatuses.find(
-          (s) => s.member_id === String(member.id) || s.member_name === member.name
+          (s) => 
+            s.member_id === String(member.id) || 
+            s.member_id === member.id ||
+            s.member_name?.toLowerCase() === member.name?.toLowerCase()
         );
         return {
           ...member,
           attendanceStatus: (existingStatus?.status as any) || 'absent',
         };
       });
+      console.log('Updated members with statuses:', updatedMembers);
       setMembers(updatedMembers);
       setSelectionChanged(true);
     }
-  }, [initialMemberStatuses]);
+  }, [initialMemberStatuses, members.length]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {

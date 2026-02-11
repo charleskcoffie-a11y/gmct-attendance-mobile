@@ -238,6 +238,8 @@ export async function getAttendanceByDateAndService(
     console.error('Error fetching attendance record:', error);
     return null;
   }
+  
+  return data;
 }
 
 // Get existing member attendance records for editing
@@ -277,8 +279,6 @@ export async function getMemberAttendanceForDateAndService(
     member_name: record.members?.name || record.member_name,
     status: record.status,
   }));
-  
-  return data;
 }
 
 // Get attendance history for a class

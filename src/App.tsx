@@ -261,6 +261,7 @@ function App() {
                         date,
                         serviceType as 'sunday' | 'bible-study'
                       );
+                      console.log('Loaded member statuses from record:', memberStatuses);
                       setEditRecordDate(date);
                       setEditRecordServiceType(serviceType);
                       setEditRecordMemberStatuses(memberStatuses);
