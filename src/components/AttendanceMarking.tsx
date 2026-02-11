@@ -78,6 +78,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [weeklyDuplicateWarning, setWeeklyDuplicateWarning] = useState<any>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(!!initialMemberStatuses);
 
   useEffect(() => {
     loadMembers();
@@ -121,6 +122,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       console.log('Updated members with statuses:', updatedMembers);
       setMembers(updatedMembers);
       setSelectionChanged(true);
+      setIsEditMode(true);
     }
   }, [initialMemberStatuses, members.length]);
 
@@ -128,12 +130,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   useEffect(() => {
     // Reset modal when date/service changes
     setShowDuplicateModal(false);
-    loadAttendanceRecord();
-  }, [selectedDate, serviceType]);
+    // Skip loading check if in edit mode (we already have the data)
+    if (!isEditMode) {
+      loadAttendanceRecord();
+    }
+  }, [selectedDate, serviceType, isEditMode]);
 
   // Ensure date is always today's date (in case app runs past midnight)
   useEffect(() => {
     const checkDateUpdate = setInterval(() => {
+      // Skip if in edit mode
+      if (isEditMode) return;
+      
       const todayDate = getLocalDateString();
       if (selectedDate !== todayDate) {
         setSelectedDate(todayDate);
@@ -141,7 +149,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }, 60000); // Check every minute
     
     return () => clearInterval(checkDateUpdate);
-  }, [selectedDate]);
+  }, [selectedDate, isEditMode]);
 
   const loadMembers = async () => {
     setLoading(true);
@@ -171,16 +179,19 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       const record = await getAttendanceByDateAndService(classNumber, selectedDate, serviceType);
       setExistingAttendance(record);
       
-      // Also check for any attendance in the same week for this service type
-      const weeklyRecord = await checkWeeklyAttendance(classNumber, selectedDate, serviceType);
-      
-      if (weeklyRecord) {
-        // There's attendance in this week for the same service type
-        setWeeklyDuplicateWarning({
-          date: weeklyRecord.attendance_date,
-          totalMembers: weeklyRecord.total_members_present || 0,
-          hasOtherRecord: true
-        });
+      // Skip duplicate warning check if in edit mode
+      if (!isEditMode) {
+        // Also check for any attendance in the same week for this service type
+        const weeklyRecord = await checkWeeklyAttendance(classNumber, selectedDate, serviceType);
+        
+        if (weeklyRecord) {
+          // There's attendance in this week for the same service type
+          setWeeklyDuplicateWarning({
+            date: weeklyRecord.attendance_date,
+            totalMembers: weeklyRecord.total_members_present || 0,
+            hasOtherRecord: true
+          });
+        }
       }
       
       if (record) {

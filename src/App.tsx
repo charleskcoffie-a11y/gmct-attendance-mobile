@@ -47,6 +47,7 @@ function App() {
     if (classView !== 'attendance') {
       setEditRecordDate(null);
       setEditRecordServiceType('sunday');
+      setEditRecordMemberStatuses([]);
     }
   }, [classView]);
 
