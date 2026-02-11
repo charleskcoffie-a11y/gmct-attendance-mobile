@@ -11,6 +11,7 @@ interface AttendanceMarkingProps {
   isAdminView?: boolean;
   initialDate?: string;
   initialServiceType?: string;
+  initialMemberStatuses?: Array<{ member_id: string; member_name: string; status: string }>;
 }
 
 interface MemberWithStatus extends Member {
@@ -39,6 +40,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   isAdminView,
   initialDate,
   initialServiceType,
+  initialMemberStatuses,
 }) => {
   // Helper function to get local date string in YYYY-MM-DD format
   const getLocalDateString = () => {
@@ -99,6 +101,23 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       setServiceType(initialServiceType as ServiceType);
     }
   }, [initialDate, initialServiceType]);
+
+  // Apply initial member statuses when editing an existing record
+  useEffect(() => {
+    if (initialMemberStatuses && members.length > 0) {
+      const updatedMembers = members.map((member) => {
+        const existingStatus = initialMemberStatuses.find(
+          (s) => s.member_id === String(member.id) || s.member_name === member.name
+        );
+        return {
+          ...member,
+          attendanceStatus: (existingStatus?.status as any) || 'absent',
+        };
+      });
+      setMembers(updatedMembers);
+      setSelectionChanged(true);
+    }
+  }, [initialMemberStatuses]);
 
   // Load attendance for the selected date and service type
   useEffect(() => {

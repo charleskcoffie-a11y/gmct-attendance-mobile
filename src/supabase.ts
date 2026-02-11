@@ -238,6 +238,45 @@ export async function getAttendanceByDateAndService(
     console.error('Error fetching attendance record:', error);
     return null;
   }
+}
+
+// Get existing member attendance records for editing
+export async function getMemberAttendanceForDateAndService(
+  classNumber: number,
+  date: string,
+  serviceType: 'sunday' | 'bible-study'
+) {
+  // First get the attendance record
+  const { data: attendanceRecord, error: attendanceError } = await supabase
+    .from('attendance')
+    .select('id')
+    .eq('class_number', classNumber.toString())
+    .eq('attendance_date', date)
+    .eq('service_type', serviceType)
+    .limit(1)
+    .maybeSingle();
+  
+  if (attendanceError || !attendanceRecord) {
+    return [];
+  }
+  
+  // Then get the member records for that attendance
+  const { data, error } = await supabase
+    .from('member_attendance')
+    .select('*, members(id, name)')
+    .eq('attendance_id', attendanceRecord.id)
+    .order('member_name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching member attendance records:', error);
+    return [];
+  }
+
+  return (data || []).map((record: any) => ({
+    member_id: record.member_id,
+    member_name: record.members?.name || record.member_name,
+    status: record.status,
+  }));
   
   return data;
 }

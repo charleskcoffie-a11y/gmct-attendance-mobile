@@ -9,6 +9,7 @@ import ClassLeaderProfile from './components/ClassLeaderProfile';
 import AttendanceRecords from './components/AttendanceRecords';
 import RecentAttendanceView from './components/RecentAttendanceView';
 import SyncManager from './components/SyncManager';
+import { getMemberAttendanceForDateAndService } from './supabase';
 import { ClassSession } from './types';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
   const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
   const [editRecordDate, setEditRecordDate] = useState<string | null>(null);
   const [editRecordServiceType, setEditRecordServiceType] = useState<string>('sunday');
+  const [editRecordMemberStatuses, setEditRecordMemberStatuses] = useState<Array<{ member_id: string; member_name: string; status: string }>>([]);
   const adminTabIndex = adminView === 'attendance' ? 0 : adminView === 'class' ? 1 : 2;
   const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : 4;
 
@@ -243,6 +245,7 @@ function App() {
                       isAdminView={false}
                       initialDate={editRecordDate || undefined}
                       initialServiceType={editRecordDate ? editRecordServiceType : undefined}
+                      initialMemberStatuses={editRecordDate ? editRecordMemberStatuses : undefined}
                     />
                     <SyncManager />
                   </>
@@ -251,9 +254,16 @@ function App() {
                 ) : classView === 'records' ? (
                   <AttendanceRecords
                     classNumber={session.classNumber}
-                    onEditRecord={(date, serviceType) => {
+                    onEditRecord={async (date, serviceType) => {
+                      // Load the member attendance records
+                      const memberStatuses = await getMemberAttendanceForDateAndService(
+                        session.classNumber,
+                        date,
+                        serviceType as 'sunday' | 'bible-study'
+                      );
                       setEditRecordDate(date);
                       setEditRecordServiceType(serviceType);
+                      setEditRecordMemberStatuses(memberStatuses);
                       setClassView('attendance');
                     }}
                   />
