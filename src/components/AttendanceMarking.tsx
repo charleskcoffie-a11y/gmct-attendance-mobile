@@ -309,8 +309,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     };
   };
 
-  const pad2 = (value: number) => String(value).padStart(2, "0");
-
   const updateMemberStatus = (memberId: string, status: string) => {
     // If duplicate warning exists, show modal and block selection
     if (weeklyDuplicateWarning?.hasOtherRecord) {
