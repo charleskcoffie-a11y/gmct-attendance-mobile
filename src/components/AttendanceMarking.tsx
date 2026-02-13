@@ -274,8 +274,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         }
       }
       
-      if (record) {
+      if (record && !isEditMode) {
         // Update member statuses based on existing attendance
+        // ONLY reset if NOT in edit mode - in edit mode, we already have the correct statuses from initial data
         setMembers(members =>
           members.map(m => ({
             ...m,
