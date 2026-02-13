@@ -113,10 +113,12 @@ export async function saveMember(member: Member) {
         address: member.address,
         city: member.city,
         province: member.province,
+        postal_code: member.postal_code,
         phone: member.phone || member.phoneNumber,
         date_of_birth: member.date_of_birth,
         dob_month: member.dob_month,
-        dob_day: member.dob_day
+        dob_day: member.dob_day,
+        is_active: member.is_active
       })
       .eq('id', memberId);
     
@@ -135,10 +137,12 @@ export async function saveMember(member: Member) {
         address: member.address,
         city: member.city,
         province: member.province,
+        postal_code: member.postal_code,
         phone: member.phone || member.phoneNumber,
         date_of_birth: member.date_of_birth,
         dob_month: member.dob_month,
-        dob_day: member.dob_day
+        dob_day: member.dob_day,
+        is_active: member.is_active ?? true
       });
     
     if (error) {

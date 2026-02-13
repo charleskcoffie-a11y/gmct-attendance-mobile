@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { saveAttendance, getClassMembers } from "../supabase";
 import { Member } from "../types";
-import { LogOut, AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
+import { MemberAttendanceRow } from "./MemberAttendanceRow";
 
 interface EditAttendanceMarkingProps {
   classNumber: number;
@@ -9,7 +10,6 @@ interface EditAttendanceMarkingProps {
   serviceType: 'sunday' | 'bible-study';
   initialMemberStatuses: Array<{ member_id: string; member_name: string; status: string }>;
   onBack: () => void;
-  onLogout: () => void;
 }
 
 interface MemberWithStatus extends Member {
@@ -25,7 +25,6 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   serviceType,
   initialMemberStatuses,
   onBack,
-  onLogout,
 }) => {
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,41 +156,43 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
 
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg sticky top-0 z-10">
-        <div className="flex items-center justify-between px-4 py-4">
-          <div className="flex-1">
-            <button onClick={onBack} className="inline-flex items-center gap-2 text-white hover:text-blue-100 transition mb-2">
-              <ArrowLeft className="w-5 h-5" />
-              Back
-            </button>
-            <h1 className="text-2xl font-bold">📝 Edit Attendance</h1>
-            <p className="text-sm text-blue-100 mt-1">{dateDisplay} • {serviceLabel}</p>
+        <div className="px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div className="flex items-center gap-2">
+              <button onClick={onBack} className="inline-flex items-center gap-1 text-white hover:text-blue-100 transition text-sm">
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+              <span className="text-blue-300">|</span>
+              <h1 className="text-lg font-bold">📝 Edit Attendance</h1>
+            </div>
+            <div className="bg-blue-500/30 px-2 py-0.5 rounded text-xs font-medium">
+              Class {classNumber}
+            </div>
           </div>
-          <button onClick={onLogout} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition text-sm backdrop-blur-sm">
-            <LogOut className="w-4 h-4 inline mr-2" />
-            Logout
-          </button>
+          <p className="text-xs text-blue-100">{dateDisplay} • {serviceLabel}</p>
         </div>
       </div>
 
       {/* Content */}
       <div className="p-4 max-w-6xl mx-auto pb-32">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-700/20 border border-emerald-500/30 rounded-lg p-4">
-            <p className="text-emerald-300 text-sm font-medium">Present</p>
-            <p className="text-2xl font-bold text-emerald-400">{presentCount}</p>
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-700/20 border border-emerald-500/30 rounded-lg p-2.5">
+            <p className="text-emerald-300 text-xs font-medium">Present</p>
+            <p className="text-xl font-bold text-emerald-400">{presentCount}</p>
           </div>
-          <div className="bg-gradient-to-br from-red-600/20 to-red-700/20 border border-red-500/30 rounded-lg p-4">
-            <p className="text-red-300 text-sm font-medium">Absent</p>
-            <p className="text-2xl font-bold text-red-400">{absentCount}</p>
+          <div className="bg-gradient-to-br from-red-600/20 to-red-700/20 border border-red-500/30 rounded-lg p-2.5">
+            <p className="text-red-300 text-xs font-medium">Absent</p>
+            <p className="text-xl font-bold text-red-400">{absentCount}</p>
           </div>
-          <div className="bg-gradient-to-br from-orange-600/20 to-orange-700/20 border border-orange-500/30 rounded-lg p-4">
-            <p className="text-orange-300 text-sm font-medium">Sick</p>
-            <p className="text-2xl font-bold text-orange-400">{sickCount}</p>
+          <div className="bg-gradient-to-br from-orange-600/20 to-orange-700/20 border border-orange-500/30 rounded-lg p-2.5">
+            <p className="text-orange-300 text-xs font-medium">Sick</p>
+            <p className="text-xl font-bold text-orange-400">{sickCount}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-600/20 to-purple-700/20 border border-purple-500/30 rounded-lg p-4">
-            <p className="text-purple-300 text-sm font-medium">Travel</p>
-            <p className="text-2xl font-bold text-purple-400">{travelCount}</p>
+          <div className="bg-gradient-to-br from-purple-600/20 to-purple-700/20 border border-purple-500/30 rounded-lg p-2.5">
+            <p className="text-purple-300 text-xs font-medium">Travel</p>
+            <p className="text-xl font-bold text-purple-400">{travelCount}</p>
           </div>
         </div>
 
@@ -217,59 +218,17 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
         {/* Members List */}
         <div className="space-y-3">
           {filteredMembers.map((member) => (
-            <div key={member.id} className="bg-slate-700/40 border border-slate-600 rounded-lg p-4 hover:bg-slate-700/60 transition">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="font-semibold text-white">{member.name}</h4>
-                  {(member.phone || member.phoneNumber) && (
-                    <p className="text-sm text-slate-400">{member.phone || member.phoneNumber}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2">
-                <button
-                  onClick={() => updateMemberStatus(member.id!, 'present')}
-                  className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-                    normalizeStatus(member.attendanceStatus) === 'present'
-                      ? 'bg-emerald-600 text-white border-emerald-500'
-                      : 'bg-slate-700 text-slate-300 hover:bg-green-600/30 hover:text-green-300 border border-slate-600'
-                  }`}
-                >
-                  {normalizeStatus(member.attendanceStatus) === 'present' ? '✓' : 'Present'}
-                </button>
-                <button
-                  onClick={() => updateMemberStatus(member.id!, 'absent')}
-                  className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-                    normalizeStatus(member.attendanceStatus) === 'absent'
-                      ? 'bg-red-600 text-white border-red-500'
-                      : 'bg-slate-700 text-slate-300 hover:bg-red-600/30 hover:text-red-300 border border-slate-600'
-                  }`}
-                >
-                  {normalizeStatus(member.attendanceStatus) === 'absent' ? '✗' : 'Absent'}
-                </button>
-                <button
-                  onClick={() => updateMemberStatus(member.id!, 'sick')}
-                  className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-                    normalizeStatus(member.attendanceStatus) === 'sick'
-                      ? 'bg-orange-600 text-white border-orange-500'
-                      : 'bg-slate-700 text-slate-300 hover:bg-orange-600/30 hover:text-orange-300 border border-slate-600'
-                  }`}
-                >
-                  {normalizeStatus(member.attendanceStatus) === 'sick' ? '🤒' : 'Sick'}
-                </button>
-                <button
-                  onClick={() => updateMemberStatus(member.id!, 'travel')}
-                  className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-                    normalizeStatus(member.attendanceStatus) === 'travel'
-                      ? 'bg-purple-600 text-white border-purple-500'
-                      : 'bg-slate-700 text-slate-300 hover:bg-purple-600/30 hover:text-purple-300 border border-slate-600'
-                  }`}
-                >
-                  {normalizeStatus(member.attendanceStatus) === 'travel' ? '✈️' : 'Travel'}
-                </button>
-              </div>
-            </div>
+            <MemberAttendanceRow
+              key={member.id}
+              id={member.id!}
+              name={member.name}
+              phone={member.phone}
+              phoneNumber={member.phoneNumber}
+              attendanceStatus={member.attendanceStatus}
+              onStatusChange={updateMemberStatus}
+              onEdit={() => {}}
+              showDeleteButton={false}
+            />
           ))}
         </div>
 

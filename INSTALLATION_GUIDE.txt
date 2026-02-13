@@ -1,0 +1,178 @@
+================================================================================
+  GMCT ATTENDANCE MOBILE APP - INSTALLATION & USER GUIDE
+================================================================================
+
+📱 INSTALLATION INSTRUCTIONS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🍎 IPHONE INSTALLATION (Safari)
+
+1. Open Safari browser on your iPhone
+2. Go to: [your-app-url]
+3. Tap the Share button (box with arrow at bottom)
+4. Scroll down and tap "Add to Home Screen"
+5. Name it "GMCT Attendance" (or your preferred name)
+6. Tap "Add"
+7. The app icon will appear on your home screen
+8. Tap to launch the app
+
+✨ FEATURES ON IPHONE:
+   • Works like a native app
+   • Can use offline (attendance data syncs when online)
+   • Touch ID / Face ID support
+   • Runs full screen without browser UI
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 ANDROID INSTALLATION (Chrome)
+
+1. Open Chrome browser on your Android phone
+2. Go to: [your-app-url]
+3. Tap the three dots menu (⋮) at top right
+4. Tap "Install app" or "Add to Home screen"
+5. Confirm the installation dialog
+6. The app icon will appear on your home screen
+7. Tap to launch the app
+
+✨ FEATURES ON ANDROID:
+   • Works like a native app
+   • Can use offline (attendance data syncs when online)
+   • Quick access from home screen
+   • Full screen experience without browser UI
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 DEFAULT LOGIN CREDENTIALS
+
+FIRST TIME LOGIN - Use These Defaults:
+
+  Username:  Your Class Number
+  Password:  Same as your Class Number
+
+Examples:
+  • Class 1 leader:
+    Username: 1
+    Password: 1
+  
+  • Class 5 leader:
+    Username: 5
+    Password: 5
+  
+  • Class 9 leader:
+    Username: 9
+    Password: 9
+
+SIMPLE RULE: Your username and password are both your class number!
+
+CHANGE YOUR PASSWORD:
+
+  1. Log in with default password
+  2. Tap "Profile" tab
+  3. Look for "Settings" in the Profile section
+  4. Find "Change Password" option
+  5. Enter new password (make it something secure!)
+  6. Confirm the change
+  7. Next time you log in, use your new password
+
+⚠️ IMPORTANT:
+  • Change your password immediately after first login
+  • Keep your password confidential
+  • Each class leader can have their own custom password
+  • Admin can also reset passwords if needed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ℹ️ HOW THE APP WORKS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FOR CLASS LEADERS:
+
+Login:
+  • Enter your access code to log in
+  • You'll see your class number and options
+
+Mark Attendance:
+  • Tap "Mark" to record attendance for today
+  • Select date, select service (Sunday or Bible Study)
+  • Mark each member: Present ✓ / Absent ✗ / Sick 🤒 / Travel ✈️
+  • Tap "Save" to submit
+  • Data saves locally even if you're offline
+
+View Records:
+  • Tap "Records" to see all past attendance records
+  • Organized by year and month
+  • Click any record to expand details
+  • Click edit button (pencil) to update an old record
+
+View Reports & Stats:
+  • Tap "Reports" to see attendance statistics
+  • See monthly/quarterly reports
+  • Track member trends and absence patterns
+
+Profile Settings:
+  • Tap "Profile" to update personal info
+  • Change password if needed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 OFFLINE MODE
+
+✅ Works WITHOUT Internet:
+  • Mark attendance offline
+  • All data saved locally on your phone
+  • View your recorded data
+  • Full functionality available
+
+📱 Auto-Sync When Online:
+  • When you reconnect to internet
+  • Data automatically syncs to the server
+  • May see small "Syncing..." notification
+  • No action needed from you
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 TROUBLESHOOTING
+
+Problem: App won't install
+  → Make sure you're using Safari (iPhone) or Chrome (Android)
+  → Check you have enough storage space
+
+Problem: Can't log in
+  → Make sure username is your class number
+  → Default password is the same as your class number
+  → Check internet connection
+  → Clear browser cache if needed
+
+Problem: Data not saving
+  → Check "Sync" tab - may be syncing
+  → Ensure you tapped "Save" button
+  → Try marking attendance again
+
+Problem: Slow loading
+  → Close other browser tabs
+  → Clear browser cache
+  → Check internet connection
+  → Try reloading the app
+
+Problem: Records not showing
+  → Check that you're in the correct class
+  → Make sure records were actually saved
+  → Refresh by going to another tab and back
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 NEED HELP?
+
+Contact Rev Charles Coffie for:
+  • Access code reset
+  • Password recovery
+  • Questions about your class data
+  • Technical support
+  • Any issues with the app
+
+================================================================================
+Last Updated: February 13, 2026
+Version: 1.0
+================================================================================

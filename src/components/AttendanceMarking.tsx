@@ -1,12 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService, checkWeeklyAttendance } from "../supabase";
 import { Member, ServiceType } from "../types";
-import { Calendar, Plus, Edit2, Trash2, Wifi, WifiOff, CheckCircle, AlertCircle, LogOut, BarChart3, Users, AlertTriangle } from "lucide-react";
+import { Calendar, Plus, WifiOff, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
+import { MemberAttendanceRow } from "./MemberAttendanceRow";
 
 interface AttendanceMarkingProps {
   classNumber: number;
-  onLogout: () => void;
-  onShowReports?: () => void;
   onBackToClasses?: () => void;
   isAdminView?: boolean;
   initialDate?: string;
@@ -26,17 +25,17 @@ interface MemberFormData {
   address?: string;
   city?: string;
   province?: string;
+  postal_code?: string;
   phoneNumber?: string;
   date_of_birth?: string;
   dob_day?: string;
   dob_month?: string;
   dob_year?: string;
+  is_active?: boolean;
 }
 
 export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   classNumber,
-  onLogout,
-  onShowReports,
   onBackToClasses,
   isAdminView,
   initialDate,
@@ -330,11 +329,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       address: "",
       city: "",
       province: "",
+      postal_code: "",
       phoneNumber: "",
       date_of_birth: "",
       dob_day: "",
       dob_month: "",
-      dob_year: ""
+      dob_year: "",
+      is_active: true
     });
     setShowMemberForm(true);
   };
@@ -348,11 +349,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       address: member.address || "",
       city: member.city || "",
       province: member.province || "",
+      postal_code: member.postal_code || "",
       phoneNumber: member.phone || member.phoneNumber || "",
       date_of_birth: member.date_of_birth || "",
       dob_day: member.dob_day ? String(member.dob_day) : (dateParts.day || ""),
       dob_month: member.dob_month ? String(member.dob_month) : (dateParts.month || ""),
-      dob_year: dateParts.year || ""
+      dob_year: dateParts.year || "",
+      is_active: member.is_active ?? true
     });
     setMemberFormData({
       id: member.id?.toString(),
@@ -361,11 +364,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       address: member.address || "",
       city: member.city || "",
       province: member.province || "",
+      postal_code: member.postal_code || "",
       phoneNumber: member.phone || member.phoneNumber || "",
       date_of_birth: member.date_of_birth || "",
       dob_day: member.dob_day ? String(member.dob_day) : (dateParts.day || ""),
       dob_month: member.dob_month ? String(member.dob_month) : (dateParts.month || ""),
-      dob_year: dateParts.year || ""
+      dob_year: dateParts.year || "",
+      is_active: member.is_active ?? true
     });
     setShowMemberForm(true);
   };
@@ -403,10 +408,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         address: memberFormData.address || currentMember?.address,
         city: isAdminView || !isEditing ? memberFormData.city : currentMember?.city,
         province: isAdminView || !isEditing ? memberFormData.province : currentMember?.province,
+        postal_code: isAdminView || !isEditing ? memberFormData.postal_code : currentMember?.postal_code,
         phoneNumber: isAdminView || !isEditing ? memberFormData.phoneNumber : (currentMember?.phone || currentMember?.phoneNumber),
         date_of_birth: composedDob,
         dob_month: dobMonth ? Number(dobMonth) : currentMember?.dob_month,
-        dob_day: dobDay ? Number(dobDay) : currentMember?.dob_day
+        dob_day: dobDay ? Number(dobDay) : currentMember?.dob_day,
+        is_active: memberFormData.is_active ?? currentMember?.is_active ?? true
       };
 
       await saveMember(newMember);
@@ -420,11 +427,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         address: "",
         city: "",
         province: "",
+        postal_code: "",
         phoneNumber: "",
         date_of_birth: "",
         dob_day: "",
         dob_month: "",
-        dob_year: ""
+        dob_year: "",
+        is_active: true
       });
       await loadMembers();
       setTimeout(() => setSuccess(null), 3000);
@@ -607,94 +616,57 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 pb-24">
-      {/* Header */}
+      {/* Header - Compact with Service Type & Date */}
       <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700/50 backdrop-blur-sm">
-        <div className="p-4 md:p-6 max-w-7xl mx-auto">
-          {/* Top Row */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-white">Class {classNumber}</h1>
-                <p className="text-xs md:text-sm text-slate-400">Mark Attendance</p>
-              </div>
+        <div className="p-4 max-w-7xl mx-auto">
+          {/* WiFi Status - Subtle indicator */}
+          {!isOnline && (
+            <div className="flex items-center justify-center gap-1 mb-3 py-1.5 px-3 bg-yellow-900/30 border border-yellow-700/40 rounded-lg">
+              <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-xs text-yellow-300">Offline - will sync later</span>
             </div>
-            <div className="flex items-center gap-2">
-              {isOnline ? (
-                <div className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 border border-emerald-500/30 rounded-lg">
-                  <Wifi className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs text-emerald-300 font-medium">Online</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 px-3 py-1.5 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
-                  <WifiOff className="w-4 h-4 text-yellow-400" />
-                  <span className="text-xs text-yellow-300 font-medium">Offline</span>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
 
-          {/* Service Type & Date Selector */}
-          <div className="space-y-4">
-            {/* Service Type and Date in one row on mobile */}
-            <div className="grid grid-cols-1 gap-4">
+          {/* Service Type & Date - Side by Side */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-400 mb-2 block">📋 Service Type</label>
+                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Service</label>
                 <select
                   value={serviceType}
                   onChange={(e) => {
                     setServiceType(e.target.value as ServiceType);
-                    setSelectionChanged(false); // Reset when service type changes
+                    setSelectionChanged(false);
                   }}
-                  className="w-full px-3 py-3 rounded-xl bg-slate-700 border-2 border-slate-600 text-white text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 >
-                  <option value="sunday">🙏 Sunday Service</option>
+                  <option value="sunday">🙏 Sunday</option>
                   <option value="bible-study">📖 Bible Study</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-400 mb-2 block">📅 Date to Record</label>
-                <div className="flex items-center gap-2 px-3 py-3 rounded-xl bg-slate-700 border-2 border-blue-600/50 transition-all">
-                  <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Date</label>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600">
+                  <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   <input
                     type="date"
                     value={selectedDate}
                     disabled
-                    className="flex-1 bg-transparent text-white text-base focus:outline-none font-medium cursor-not-allowed opacity-90"
+                    className="flex-1 bg-transparent text-white text-sm focus:outline-none font-medium cursor-not-allowed"
                   />
                 </div>
               </div>
             </div>
             
-            {/* Action buttons in a separate row */}
-            <div className="grid grid-cols-2 gap-3">
-              {onShowReports && (
-                <button
-                  onClick={onShowReports}
-                  className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Reports</span>
-                </button>
-              )}
-              {onBackToClasses && (
-                <button
-                  onClick={onBackToClasses}
-                  className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all"
-                >
-                  ← Back
-                </button>
-              )}
+            {/* Back button only if admin */}
+            {onBackToClasses && (
               <button
-                onClick={onLogout}
-                className="col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 hover:bg-red-600/30 border-2 border-red-500/30 text-red-300 rounded-xl font-semibold transition-all"
+                onClick={onBackToClasses}
+                className="w-full px-4 py-2 bg-slate-700/50 hover:bg-slate-600 text-white rounded-lg font-medium transition-all text-sm"
               >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
+                ← Back to Classes
               </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -756,45 +728,43 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       {/* Content */}
       <div className="p-4 md:p-6 max-w-7xl mx-auto">
         {/* Compact Stats Dashboard */}
-        <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 border border-slate-600/50 rounded-2xl p-4 mb-6 backdrop-blur-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Total Members - Main Stat */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600/50 to-blue-500/50 border border-blue-400/50 flex items-center justify-center">
-                <span className="text-xl font-bold text-white">{members.length}</span>
+        <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 border border-slate-600/50 rounded-2xl p-3 mb-6 backdrop-blur-sm overflow-x-auto">
+          <div className="flex items-center justify-between gap-3 min-w-max">
+            {/* Total Members */}
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600/50 to-blue-500/50 border border-blue-400/50 flex items-center justify-center">
+                <span className="text-lg font-bold text-white">{members.length}</span>
               </div>
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Total Members</p>
-              </div>
+              <p className="text-xs text-slate-300 font-medium">Members</p>
             </div>
 
-            {/* Status Breakdown - Mini Stats */}
+            {/* Status Stats - All in one line */}
             <div className="flex items-center gap-2">
-              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-green-600/20 border border-green-500/30">
-                <p className="font-bold text-green-300">{presentCount}</p>
-                <p className="text-xs text-green-300 opacity-75">Present</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-600/20 border border-green-500/30">
+                <p className="text-base font-bold text-green-300">{presentCount}</p>
+                <p className="text-xs text-green-300">Present</p>
               </div>
-              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500/30">
-                <p className="font-bold text-red-300">{absentCount}</p>
-                <p className="text-xs text-red-300 opacity-75">Absent</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-600/20 border border-red-500/30">
+                <p className="text-base font-bold text-red-300">{absentCount}</p>
+                <p className="text-xs text-red-300">Absent</p>
               </div>
-              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30">
-                <p className="font-bold text-orange-300">{sickCount}</p>
-                <p className="text-xs text-orange-300 opacity-75">Sick</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30">
+                <p className="text-base font-bold text-orange-300">{sickCount}</p>
+                <p className="text-xs text-orange-300">Sick</p>
               </div>
-              <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30">
-                <p className="font-bold text-purple-300">{travelCount}</p>
-                <p className="text-xs text-purple-300 opacity-75">Travel</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30">
+                <p className="text-base font-bold text-purple-300">{travelCount}</p>
+                <p className="text-xs text-purple-300">Travel</p>
               </div>
             </div>
 
             {/* Attendance Rate */}
             {members.length > 0 && (
-              <div className="text-right">
+              <div className="flex items-center gap-2">
                 <p className="text-2xl font-bold text-white">
                   {Math.round((presentCount / members.length) * 100)}%
                 </p>
-                <p className="text-xs text-slate-400 font-medium">Attendance Rate</p>
+                <p className="text-xs text-slate-300 font-medium">Rate</p>
               </div>
             )}
           </div>
@@ -884,95 +854,117 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     />
                   </div>
                   {isAdminView && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          City
-                        </label>
-                        <input
-                          type="text"
-                          value={memberFormData.city || ""}
-                          onChange={(e) =>
-                            setMemberFormData({ ...memberFormData, city: e.target.value })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="City"
-                        />
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            City
+                          </label>
+                          <input
+                            type="text"
+                            value={memberFormData.city || ""}
+                            onChange={(e) =>
+                              setMemberFormData({ ...memberFormData, city: e.target.value })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="City"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Province
+                          </label>
+                          <input
+                            type="text"
+                            value={memberFormData.province || ""}
+                            onChange={(e) =>
+                              setMemberFormData({ ...memberFormData, province: e.target.value })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Province"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Province
+                          Postal Code
                         </label>
                         <input
                           type="text"
-                          value={memberFormData.province || ""}
+                          value={memberFormData.postal_code || ""}
                           onChange={(e) =>
-                            setMemberFormData({ ...memberFormData, province: e.target.value })
+                            setMemberFormData({ ...memberFormData, postal_code: e.target.value })
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Province"
+                          placeholder="Postal code"
                         />
                       </div>
-                    </div>
+                    </>
                   )}
-                  {isAdminView ? (
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Date of Birth
+                        Birth Day
                       </label>
                       <input
-                        type="date"
-                        value={memberFormData.date_of_birth || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const parts = parseDateParts(value);
-                          setMemberFormData({
-                            ...memberFormData,
-                            date_of_birth: value,
-                            dob_year: parts.year,
-                            dob_month: parts.month,
-                            dob_day: parts.day
-                          });
-                        }}
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={memberFormData.dob_day || ""}
+                        onChange={(e) =>
+                          setMemberFormData({ ...memberFormData, dob_day: e.target.value })
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Day"
                       />
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Birth Day
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={memberFormData.dob_day || ""}
-                          onChange={(e) =>
-                            setMemberFormData({ ...memberFormData, dob_day: e.target.value })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Day"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Birth Year
-                        </label>
-                        <input
-                          type="number"
-                          min={1900}
-                          max={new Date().getFullYear()}
-                          value={memberFormData.dob_year || ""}
-                          onChange={(e) =>
-                            setMemberFormData({ ...memberFormData, dob_year: e.target.value })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Year"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Birth Month
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={memberFormData.dob_month || ""}
+                        onChange={(e) =>
+                          setMemberFormData({ ...memberFormData, dob_month: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Month"
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Birth Year
+                      </label>
+                      <input
+                        type="number"
+                        min={1900}
+                        max={new Date().getFullYear()}
+                        value={memberFormData.dob_year || ""}
+                        onChange={(e) =>
+                          setMemberFormData({ ...memberFormData, dob_year: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Year"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="is_active"
+                      checked={memberFormData.is_active ?? true}
+                      onChange={(e) =>
+                        setMemberFormData({ ...memberFormData, is_active: e.target.checked })
+                      }
+                      className="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <label htmlFor="is_active" className="ml-2 text-sm font-medium text-gray-700">
+                      Active Member
+                    </label>
+                  </div>
                   <div className="flex gap-3 pt-4">
                     <button
                       onClick={handleSaveMember}
@@ -990,11 +982,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                           address: "",
                           city: "",
                           province: "",
+                          postal_code: "",
                           phoneNumber: "",
                           date_of_birth: "",
                           dob_day: "",
                           dob_month: "",
-                          dob_year: ""
+                          dob_year: "",
+                          is_active: true
                         });
                         setEditingMember(null);
                       }}
@@ -1032,99 +1026,18 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         ) : (
           <div className="space-y-3 mb-6">
             {filteredMembers.map((member) => (
-              <div
+              <MemberAttendanceRow
                 key={member.id}
-                className="bg-slate-800/50 border border-slate-600/50 rounded-2xl p-4 backdrop-blur-sm transition-all hover:bg-slate-800/70"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-white">
-                      {member.name}
-                    </h4>
-                    {(member.phone || member.phoneNumber) && (
-                      <p className="text-sm text-slate-400">{member.phone || member.phoneNumber}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditMember(member)}
-                      className="p-2.5 hover:bg-blue-600/20 rounded-lg transition border border-transparent hover:border-blue-500/30"
-                    >
-                      <Edit2 className="w-4 h-4 text-blue-400" />
-                    </button>
-                    {isAdminView && (
-                      <button
-                        onClick={() => handleDeleteMember(member.id!)}
-                        className="p-2.5 hover:bg-red-600/20 rounded-lg transition border border-transparent hover:border-red-500/30"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => updateMemberStatus(member.id!, "present")}
-                    className={`col-span-2 py-3 px-2 rounded-xl font-bold text-base transition ${
-                      normalizeStatus(member.attendanceStatus) === "present"
-                        ? "bg-emerald-600 text-white shadow-lg border border-emerald-500"
-                        : "bg-slate-700 text-slate-300 hover:bg-green-600/30 hover:text-green-300 border border-slate-600"
-                    }`}
-                    style={
-                      normalizeStatus(member.attendanceStatus) === "present"
-                        ? { backgroundColor: "#059669", color: "#ffffff", borderColor: "#10b981" }
-                        : undefined
-                    }
-                  >
-                    {normalizeStatus(member.attendanceStatus) === "present" ? "✓ Present" : "Present"}
-                  </button>
-                  <button
-                    onClick={() => updateMemberStatus(member.id!, "absent")}
-                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
-                      normalizeStatus(member.attendanceStatus) === "absent"
-                        ? "bg-red-600 text-white border-red-500"
-                        : "bg-slate-700 text-slate-300 hover:bg-red-600/30 hover:text-red-300 border border-slate-600"
-                    }`}
-                    style={
-                      normalizeStatus(member.attendanceStatus) === "absent"
-                        ? { backgroundColor: "#dc2626", color: "#ffffff", borderColor: "#ef4444" }
-                        : undefined
-                    }
-                  >
-                    Absent
-                  </button>
-                  <button
-                    onClick={() => updateMemberStatus(member.id!, "sick")}
-                    className={`py-2 px-2 rounded-lg text-sm transition border ${
-                      normalizeStatus(member.attendanceStatus) === "sick"
-                        ? "bg-orange-600 text-white border-orange-500"
-                        : "bg-slate-700 text-slate-300 hover:bg-orange-600/30 hover:text-orange-300 border border-slate-600"
-                    }`}
-                    style={
-                      normalizeStatus(member.attendanceStatus) === "sick"
-                        ? { backgroundColor: "#ea580c", color: "#ffffff", borderColor: "#f97316" }
-                        : undefined
-                    }
-                  >
-                    Sick
-                  </button>
-                  <button
-                    onClick={() => updateMemberStatus(member.id!, "travel")}
-                    className={`py-2 px-2 rounded-lg text-sm transition border ${
-                      normalizeStatus(member.attendanceStatus) === "travel"
-                        ? "bg-purple-600 text-white border-purple-500"
-                        : "bg-slate-700 text-slate-300 hover:bg-purple-600/30 hover:text-purple-300 border border-slate-600"
-                    }`}
-                    style={
-                      normalizeStatus(member.attendanceStatus) === "travel"
-                        ? { backgroundColor: "#7c3aed", color: "#ffffff", borderColor: "#8b5cf6" }
-                        : undefined
-                    }
-                  >
-                    Travel
-                  </button>
-                </div>
-              </div>
+                id={member.id!}
+                name={member.name}
+                phone={member.phone}
+                phoneNumber={member.phoneNumber}
+                attendanceStatus={member.attendanceStatus}
+                onStatusChange={updateMemberStatus}
+                onEdit={() => handleEditMember(member)}
+                onDelete={() => handleDeleteMember(member.id!)}
+                showDeleteButton={isAdminView}
+              />
             ))}
           </div>
         )}

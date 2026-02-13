@@ -34,12 +34,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
   const [ministerEmails, setMinisterEmails] = useState("");
   const [monthlyAbsenceThreshold, setMonthlyAbsenceThreshold] = useState(4);
   const [quarterlyAbsenceThreshold, setQuarterlyAbsenceThreshold] = useState(10);
-  const [recentAttendanceFilter, setRecentAttendanceFilter] = useState<"bible-study" | "sunday" | "total">("bible-study");
-  const [recentAttendanceCount, setRecentAttendanceCount] = useState(0);
-  const [recentDate, setRecentDate] = useState("");
-  const [recentAttendanceDates, setRecentAttendanceDates] = useState<string[]>([]);
-  const [recentSelectedClass, setRecentSelectedClass] = useState<string | null>(null);
-  const [recentAvailableClasses, setRecentAvailableClasses] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState({
     statsTotals: false,
     appConfig: false,
@@ -54,18 +48,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     loadInitialData();
   }, []);
 
-  useEffect(() => {
-    loadRecentAttendanceDates();
-  }, [recentAttendanceFilter, recentSelectedClass]);
-
-  useEffect(() => {
-    if (!recentDate) {
-      setRecentAttendanceCount(0);
-      return;
-    }
-    loadRecentAttendance();
-  }, [recentDate, recentAttendanceFilter, recentSelectedClass]);
-
   const toggleSection = (key: keyof typeof openSections) => {
     if (key === "classLeaders" && editingId !== null) return;
     setOpenSections((prev) => ({
@@ -79,57 +61,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     setError(null);
     await Promise.all([testConnection(), loadStats(), loadClassLeaders(), loadAppSettings()]);
     setLoading(false);
-  };
-
-  const loadRecentAttendanceDates = async () => {
-    try {
-      // Load available classes
-      let classQuery = supabase
-        .from("attendance")
-        .select("class_number")
-        .order("class_number", { ascending: true });
-
-      if (recentAttendanceFilter !== "total") {
-        classQuery = classQuery.eq("service_type", recentAttendanceFilter);
-      }
-
-      const { data: classData, error: classError } = await classQuery;
-      if (!classError && classData) {
-        const uniqueClasses = Array.from(
-          new Set(classData.map((row: any) => row.class_number).filter(Boolean))
-        ).sort((a, b) => Number(a) - Number(b));
-        setRecentAvailableClasses(uniqueClasses);
-      }
-
-      // Load dates filtered by service type and class
-      let query = supabase
-        .from("attendance")
-        .select("attendance_date")
-        .order("attendance_date", { ascending: true });
-
-      if (recentAttendanceFilter !== "total") {
-        query = query.eq("service_type", recentAttendanceFilter);
-      }
-
-      if (recentSelectedClass) {
-        query = query.eq("class_number", recentSelectedClass);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const uniqueDates = Array.from(
-        new Set((data || []).map((row: any) => row.attendance_date).filter(Boolean))
-      );
-
-      setRecentAttendanceDates(uniqueDates);
-      setRecentDate(uniqueDates[uniqueDates.length - 1] || "");
-    } catch (err) {
-      console.error("Error loading attendance dates:", err);
-      setRecentAttendanceDates([]);
-      setRecentDate("");
-      setRecentAvailableClasses([]);
-    }
   };
 
   const testConnection = async () => {
@@ -194,29 +125,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     } catch (err) {
       console.error("Error loading stats:", err);
       // Don't set error here, just log it - show partial stats instead
-    }
-  };
-
-  const loadRecentAttendance = async () => {
-    try {
-      let query = supabase
-        .from("attendance")
-        .select("id", { count: "exact", head: true })
-        .eq("attendance_date", recentDate);
-
-      if (recentAttendanceFilter !== "total") {
-        query = query.eq("service_type", recentAttendanceFilter);
-      }
-
-      if (recentSelectedClass) {
-        query = query.eq("class_number", recentSelectedClass);
-      }
-
-      const { count, error } = await query;
-      if (error) throw error;
-      setRecentAttendanceCount(count || 0);
-    } catch (err) {
-      console.error("Error loading recent attendance:", err);
     }
   };
 
@@ -549,94 +457,6 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
           )}
         </div>
       )}
-
-      {/* Recent Attendance */}
-      <div className="bg-slate-900/70 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/60 p-6 mb-6">
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-white">Recent Attendance</h2>
-            <p className="text-sm text-slate-300 mt-1">Select service type and date to view attendance count.</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setRecentAttendanceFilter("bible-study")}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${
-                recentAttendanceFilter === "bible-study"
-                  ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-500/40"
-                  : "bg-white/10 text-slate-200 border border-white/20 hover:bg-white/15"
-              }`}
-              aria-pressed={recentAttendanceFilter === "bible-study"}
-            >
-              📖 Bible Study
-            </button>
-            <button
-              onClick={() => setRecentAttendanceFilter("sunday")}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${
-                recentAttendanceFilter === "sunday"
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/40"
-                  : "bg-white/10 text-slate-200 border border-white/20 hover:bg-white/15"
-              }`}
-              aria-pressed={recentAttendanceFilter === "sunday"}
-            >
-              🙏 Sunday Service
-            </button>
-            <button
-              onClick={() => setRecentAttendanceFilter("total")}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${
-                recentAttendanceFilter === "total"
-                  ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/40"
-                  : "bg-white/10 text-slate-200 border border-white/20 hover:bg-white/15"
-              }`}
-              aria-pressed={recentAttendanceFilter === "total"}
-            >
-              📊 Total
-            </button>
-          </div>
-        </div>
-        <div className="mt-5 mb-4">
-          <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wide">Filter by Class</label>
-          <select
-            value={recentSelectedClass || ""}
-            onChange={(e) => setRecentSelectedClass(e.target.value || null)}
-            className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
-            disabled={recentAvailableClasses.length === 0}
-          >
-            <option value="">All Classes</option>
-            {recentAvailableClasses.map((classNum) => (
-              <option key={`class-${classNum}`} value={classNum} className="text-slate-900">
-                Class {classNum}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-4 mt-5">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2 uppercase tracking-wide">Attendance Date</label>
-            <select
-              value={recentDate}
-              onChange={(e) => setRecentDate(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
-              disabled={recentAttendanceDates.length === 0}
-            >
-              {recentAttendanceDates.length === 0 ? (
-                <option value="">No marked dates</option>
-              ) : (
-                recentAttendanceDates.map((date) => (
-                  <option key={`date-${date}`} value={date} className="text-slate-900">
-                    {date}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <div className="w-full md:w-auto bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl shadow-xl px-6 py-4 text-white">
-              <p className="text-xs uppercase tracking-wide text-purple-100">Attendance Count</p>
-              <p className="text-3xl font-black mt-1">{recentAttendanceCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* App Settings from Database */}
       {appSettings && (

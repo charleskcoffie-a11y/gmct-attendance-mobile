@@ -32,16 +32,33 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
     setLoading(true);
     setError(null);
     try {
+      console.log('🔍 Loading attendance for class:', classNumber, 'type:', typeof classNumber);
+      const classNumberStr = classNumber.toString();
+      console.log('📝 Query filter - class_number:', classNumberStr, 'type:', typeof classNumberStr);
+      
+      // First, let's check ALL attendance records to see if any exist
+      const { data: allData } = await supabase
+        .from("attendance")
+        .select("*")
+        .limit(5);
+      
+      console.log('📋 Sample of ALL attendance records:', allData?.map((r: any) => ({ class_number: r.class_number, class_type: typeof r.class_number, date: r.attendance_date })));
+      
       const { data, error: dbError } = await supabase
         .from("attendance")
         .select("*")
-        .eq("class_number", classNumber.toString())
+        .eq("class_number", classNumberStr)
         .order("attendance_date", { ascending: false });
 
+      console.log('📊 Filtered query result:', { dataCount: data?.length, error: dbError });
       if (dbError) {
         setError("Failed to load attendance records");
         console.error("Error loading records:", dbError);
       } else if (data) {
+        console.log('✅ Records loaded:', data.length, 'records');
+        data.forEach((record: any, idx: number) => {
+          console.log(`  [${idx}] class: ${record.class_number}, date: ${record.attendance_date}, service: ${record.service_type}`);
+        });
         setRecords(data);
       }
     } catch (err) {
@@ -200,7 +217,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
       </div>
 
       {records.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
           {Object.keys(groupedRecords)
             .map(Number)
             .sort((a, b) => b - a)
@@ -226,7 +243,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                 </button>
 
                 {expandedYears.has(year) && (
-                  <div className="border-t border-slate-600 bg-gradient-to-br from-slate-800 to-slate-900 p-3 space-y-2">
+                  <div className="border-t border-slate-600 bg-gradient-to-br from-slate-800 to-slate-900 p-3 space-y-2 max-h-[500px] overflow-y-auto">
                     {Object.keys(groupedRecords[year])
                       .map(Number)
                       .sort((a, b) => b - a)
@@ -255,55 +272,53 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                             </button>
 
                             {expandedMonths.has(monthKey) && (
-                              <div className="border-t border-slate-600 bg-slate-800/50 p-3 space-y-3">
+                              <div className="border-t border-slate-600 bg-slate-800/50 p-3 space-y-3 max-h-96 overflow-y-auto">
                                 {monthRecords
                                   .sort((a, b) => new Date((b.attendance_date || "") + "T00:00:00").getTime() - new Date((a.attendance_date || "") + "T00:00:00").getTime())
                                   .map((record) => (
                                     <div
                                       key={record.id}
-                                      className="bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-slate-600 rounded-xl overflow-hidden shadow-lg transition-all duration-300"
+                                      className="bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 rounded-lg overflow-hidden shadow-lg transition-all duration-300"
                                     >
-                                      <div className="p-4 md:p-5">
-                                        <div className="flex items-start justify-between gap-4 mb-3">
+                                      <div className="p-3">
+                                        <div className="flex items-start justify-between gap-3">
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-2">
-                                              <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
-                                              <div>
-                                                <span className="font-bold text-white text-lg">
-                                                  {new Date((record.attendance_date || "") + "T00:00:00").toLocaleDateString(
-                                                    "en-US",
-                                                    {
-                                                      weekday: "short",
-                                                      month: "short",
-                                                      day: "numeric",
-                                                    }
-                                                  )}
-                                                </span>
-                                              </div>
+                                              <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                              <span className="font-bold text-white text-base">
+                                                {new Date((record.attendance_date || "") + "T00:00:00").toLocaleDateString(
+                                                  "en-US",
+                                                  {
+                                                    weekday: "short",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                  }
+                                                )}
+                                              </span>
                                             </div>
 
-                                            <div className="flex items-center gap-2 ml-7 mb-3">
-                                              <span className="inline-block px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-blue-500 text-white text-xs font-bold rounded-full">
+                                            <div className="flex items-center gap-2 ml-6 mb-2">
+                                              <span className="inline-block px-2.5 py-1 bg-gradient-to-r from-indigo-500 to-blue-500 text-white text-xs font-bold rounded-full">
                                                 {getServiceTypeLabel(record.service_type || "sunday")}
                                               </span>
                                             </div>
 
-                                            <div className="grid grid-cols-3 gap-2 ml-7 mb-3">
-                                              <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-green-500/30">
-                                                <p className="text-xs text-slate-400 font-medium">Present</p>
-                                                <p className="text-lg font-bold text-green-400">
+                                            <div className="grid grid-cols-3 gap-2 ml-6">
+                                              <div className="bg-slate-800/50 rounded-lg p-1.5 text-center border border-green-500/30">
+                                                <p className="text-[10px] text-slate-400 font-medium">Present</p>
+                                                <p className="text-base font-bold text-green-400">
                                                   {record.total_members_present || 0}
                                                 </p>
                                               </div>
-                                              <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-red-500/30">
-                                                <p className="text-xs text-slate-400 font-medium">Absent</p>
-                                                <p className="text-lg font-bold text-red-400">
+                                              <div className="bg-slate-800/50 rounded-lg p-1.5 text-center border border-red-500/30">
+                                                <p className="text-[10px] text-slate-400 font-medium">Absent</p>
+                                                <p className="text-base font-bold text-red-400">
                                                   {record.total_members_absent || 0}
                                                 </p>
                                               </div>
-                                              <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-amber-500/30">
-                                                <p className="text-xs text-slate-400 font-medium">Visitors</p>
-                                                <p className="text-lg font-bold text-amber-400">
+                                              <div className="bg-slate-800/50 rounded-lg p-1.5 text-center border border-amber-500/30">
+                                                <p className="text-[10px] text-slate-400 font-medium">Visitors</p>
+                                                <p className="text-base font-bold text-amber-400">
                                                   {record.total_visitors || 0}
                                                 </p>
                                               </div>
@@ -314,7 +329,7 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                                             className="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/50 active:scale-90 hover:bg-blue-500/30 transition shrink-0"
                                             title="Edit attendance"
                                           >
-                                            <Edit className="w-5 h-5" />
+                                            <Edit className="w-4 h-4" />
                                           </button>
                                         </div>
                                       </div>

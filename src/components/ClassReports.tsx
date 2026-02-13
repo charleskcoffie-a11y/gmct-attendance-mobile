@@ -17,7 +17,6 @@ import { AlertCircle, CheckCircle, Trash2, TrendingUp, Users, Calendar, BarChart
 interface ClassReportsProps {
   classNumber: number;
   onBack: () => void;
-  onBackToClasses?: () => void;
 }
 
 interface AttendanceRow {
@@ -37,7 +36,7 @@ interface QuarterlyReportSummary {
   generatedAt: string;
 }
 
-export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack, onBackToClasses }) => {
+export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack }) => {
   const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual" | "members">("monthly");
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -431,92 +430,80 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-300 text-xs font-semibold mb-3 border border-blue-500/20">
-                Analytics Dashboard
+        <div className="mb-4">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 text-[10px] font-semibold mb-2 border border-blue-500/20">
+            Analytics Dashboard
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-white">Class Reports</h1>
-                  <p className="text-sm md:text-base text-slate-300">Class {classNumber} • Attendance Analytics & Reports</p>
-                </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Class Reports</h1>
+                <p className="text-xs text-slate-300">Class {classNumber} • Attendance Analytics & Reports</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {onBackToClasses && (
-                <button
-                  onClick={onBackToClasses}
-                  className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-medium transition-all shadow-lg"
-                >
-                  Back to Classes
-                </button>
-              )}
-              <button
-                onClick={onBack}
-                className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-medium transition-all shadow-lg"
-              >
-                Back
-              </button>
-            </div>
+            <button
+              onClick={onBack}
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-all shadow-lg shrink-0"
+            >
+              Back
+            </button>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="mb-6 flex flex-wrap gap-3 bg-slate-800/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-700/50 w-fit">
+        <div className="mb-4 flex flex-wrap gap-2 bg-slate-800/50 backdrop-blur-sm p-1 rounded-xl border border-slate-700/50 w-fit">
           <button
             onClick={() => setActiveTab("monthly")}
-            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               activeTab === "monthly"
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" />
               Monthly
             </div>
           </button>
           <button
             onClick={() => setActiveTab("quarterly")}
-            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               activeTab === "quarterly"
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
               Quarterly
             </div>
           </button>
           <button
             onClick={() => setActiveTab("manual")}
-            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               activeTab === "manual"
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Download className="w-4 h-4" />
+            <div className="flex items-center gap-1.5">
+              <Download className="w-3.5 h-3.5" />
               Manual Reports
             </div>
           </button>
           <button
             onClick={() => setActiveTab("members")}
-            className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               activeTab === "members"
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4" />
+            <div className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
               Member Reports
             </div>
           </button>
@@ -537,15 +524,15 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
         )}
 
         {/* Period Selector */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
           {activeTab === "monthly" ? (
-            <div className="flex flex-col gap-3">
-              <label className="text-sm font-semibold text-slate-300">Select Month</label>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-slate-300">Select Month</label>
               <input
                 type="month"
                 value={monthKey}
                 onChange={(e) => setMonthKey(e.target.value)}
-                className="max-w-xs px-4 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="max-w-xs px-3 py-2 bg-slate-700 border border-slate-600 text-white text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           ) : activeTab === "quarterly" ? (
@@ -597,80 +584,114 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
 
         {/* Analytics Cards */}
         {activeTab !== "manual" && (
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             {/* Presence Metrics */}
-            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-sm rounded-xl border border-blue-500/30 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-blue-600/30 rounded-lg">
-                  <Users className="w-3 h-3 text-blue-300" />
-                </div>
-                <h3 className="text-xs font-semibold text-slate-300">Avg Present</h3>
+            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-sm rounded-lg border border-blue-500/30 p-2">
+              <div className="flex items-center gap-1 mb-0.5">
+                <Users className="w-2.5 h-2.5 text-blue-300" />
+                <h3 className="text-[9px] font-semibold text-slate-300">Avg Present</h3>
               </div>
-              <div className="text-xl font-bold text-blue-300">
+              <div className="text-base font-bold text-blue-300">
                 {attendanceTotals.records ? Math.round(attendanceTotals.present / attendanceTotals.records) : 0}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">{attendanceTotals.records} records</p>
+              <p className="text-[9px] text-slate-400">{attendanceTotals.records} records</p>
             </div>
 
             {/* Absence Metrics */}
-            <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-sm rounded-xl border border-orange-500/30 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-orange-600/30 rounded-lg">
-                  <AlertCircle className="w-3 h-3 text-orange-300" />
-                </div>
-                <h3 className="text-xs font-semibold text-slate-300">Avg Absent</h3>
+            <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 backdrop-blur-sm rounded-lg border border-orange-500/30 p-2">
+              <div className="flex items-center gap-1 mb-0.5">
+                <AlertCircle className="w-2.5 h-2.5 text-orange-300" />
+                <h3 className="text-[9px] font-semibold text-slate-300">Avg Absent</h3>
               </div>
-              <div className="text-xl font-bold text-orange-300">
+              <div className="text-base font-bold text-orange-300">
                 {attendanceTotals.records ? Math.round(attendanceTotals.absent / attendanceTotals.records) : 0}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">{attendanceTotals.records} records</p>
+              <p className="text-[9px] text-slate-400">{attendanceTotals.records} records</p>
             </div>
           </div>
         )}
 
         {/* Attendance Trend Chart */}
         {activeTab !== "manual" && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white">Attendance Trend</h2>
-              <span className="text-xs text-slate-400">{dateRange.start} to {dateRange.end}</span>
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-bold text-white">Attendance Trend</h2>
+              <span className="text-[9px] text-slate-400">{dateRange.start} to {dateRange.end}</span>
             </div>
             {trendSeries.length === 0 ? (
-              <div className="text-sm text-slate-400 py-8 text-center">No data to display</div>
+              <div className="text-sm text-slate-400 py-4 text-center">No data to display</div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-end justify-between gap-2 h-40 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
-                  {trendSeries.map((item, index) => {
-                    const heightPercent = (item.present / maxTrendValue) * 100;
-                    return (
-                      <div key={`${item.date}-${index}`} className="flex-1 flex flex-col items-center gap-2 group h-full">
-                        <div className="h-full flex items-end justify-center w-full">
-                          <div
-                            className="w-3/4 bg-gradient-to-t from-blue-500 to-blue-300 rounded-t transition-all group-hover:from-blue-400 group-hover:to-blue-200 cursor-pointer"
-                            style={{ height: `${heightPercent}%`, minHeight: heightPercent > 0 ? '4px' : '0px' }}
-                            title={`${item.date} - Present: ${item.present}, Absent: ${item.absent}`}
-                          />
-                        </div>
-                        <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-medium">
-                          {item.date.slice(8)}
-                        </span>
-                        <span className="text-[9px] text-slate-500 font-semibold">{item.present}</span>
-                      </div>
-                    );
-                  })}
+              <div className="space-y-2">
+                <div className="relative h-24 bg-slate-700/30 rounded-lg border border-slate-600/30 p-2">
+                  <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${trendSeries.length * 10} 100`}>
+                    {/* Grid lines */}
+                    <line x1="0" y1="25" x2={trendSeries.length * 10} y2="25" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
+                    <line x1="0" y1="50" x2={trendSeries.length * 10} y2="50" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
+                    <line x1="0" y1="75" x2={trendSeries.length * 10} y2="75" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
+                    
+                    {/* Line path */}
+                    <polyline
+                      points={trendSeries.map((item, index) => {
+                        const x = index * 10 + 5;
+                        const y = 100 - (item.present / maxTrendValue) * 90;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke="url(#lineGradient)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    
+                    {/* Data points */}
+                    {trendSeries.map((item, index) => {
+                      const x = index * 10 + 5;
+                      const y = 100 - (item.present / maxTrendValue) * 90;
+                      return (
+                        <circle
+                          key={`${item.date}-${index}`}
+                          cx={x}
+                          cy={y}
+                          r="1.5"
+                          fill="#3b82f6"
+                          className="hover:r-2"
+                        >
+                          <title>{`${item.date.slice(8)} - Present: ${item.present}, Absent: ${item.absent}`}</title>
+                        </circle>
+                      );
+                    })}
+                    
+                    <defs>
+                      <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  {/* Y-axis labels */}
+                  <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[8px] text-slate-500 -ml-6">
+                    <span>{maxTrendValue}</span>
+                    <span>{Math.round(maxTrendValue * 0.5)}</span>
+                    <span>0</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div className="p-3 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
-                    <p className="text-slate-400 text-[10px] mb-1">Records</p>
-                    <span className="font-semibold text-sm">{trendSeries.length}</span>
+                {/* X-axis dates */}
+                <div className="flex justify-between text-[9px] text-slate-400 px-2">
+                  <span>{trendSeries[0]?.date.slice(5)}</span>
+                  {trendSeries.length > 1 && <span>{trendSeries[trendSeries.length - 1]?.date.slice(5)}</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="p-2 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
+                    <p className="text-slate-400 text-[9px] mb-0.5">Records</p>
+                    <span className="font-semibold text-xs">{trendSeries.length}</span>
                   </div>
-                  <div className="p-3 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
-                    <p className="text-slate-400 text-[10px] mb-1">Max Present</p>
-                    <span className="font-semibold text-sm">{Math.max(0, ...trendSeries.map(x => x.present))}</span>
+                  <div className="p-2 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
+                    <p className="text-slate-400 text-[9px] mb-0.5">Max Present</p>
+                    <span className="font-semibold text-xs">{Math.max(0, ...trendSeries.map(x => x.present))}</span>
                   </div>
-                  <div className="p-3 bg-orange-500/20 rounded-lg border border-orange-500/30 text-orange-300">
-                    <p className="text-slate-400 text-[10px] mb-1">Min Present</p>
-                    <span className="font-semibold text-sm">{Math.min(...trendSeries.map(x => x.present))}</span>
+                  <div className="p-2 bg-orange-500/20 rounded-lg border border-orange-500/30 text-orange-300">
+                    <p className="text-slate-400 text-[9px] mb-0.5">Min Present</p>
+                    <span className="font-semibold text-xs">{Math.min(...trendSeries.map(x => x.present))}</span>
                   </div>
                 </div>
               </div>
@@ -680,19 +701,19 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
 
         {/* Monthly Breakdown */}
         {activeTab !== "manual" && monthlyBreakdown.length > 0 && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
-            <h2 className="text-lg font-bold text-white mb-6">Monthly Breakdown</h2>
-            <div className="space-y-4">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
+            <h2 className="text-sm font-bold text-white mb-3">Monthly Breakdown</h2>
+            <div className="space-y-3">
               {monthlyBreakdown.map((item) => (
-                <div key={item.month} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
+                <div key={item.month} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-300">{item.month}</span>
-                    <div className="flex gap-4 text-xs text-slate-400">
+                    <div className="flex gap-3 text-[10px] text-slate-400">
                       <span>Present: <span className="font-semibold text-blue-300">{item.present}</span></span>
                       <span>Absent: <span className="font-semibold text-orange-300">{item.absent}</span></span>
                     </div>
                   </div>
-                  <div className="flex gap-1 h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                  <div className="flex gap-1 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
                       style={{ width: `${Math.max(6, Math.round((item.present / maxMonthlyPresent) * 100))}%` }}
@@ -713,25 +734,25 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack,
 
         {/* Quarterly Report Display */}
         {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white">Quarterly Report</h2>
-              <span className="text-xs text-slate-400">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-white">Quarterly Report</h2>
+              <span className="text-[10px] text-slate-400">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
             </div>
             
             {/* Summary Cards */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                <p className="text-xs text-slate-400 font-medium mb-2">Total Present</p>
-                <p className="text-2xl font-bold text-blue-300">{quarterlyReportData.totals.present}</p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="bg-blue-600/20 border border-blue-500/30 rounded-lg p-2.5">
+                <p className="text-[10px] text-slate-400 font-medium mb-1">Total Present</p>
+                <p className="text-lg font-bold text-blue-300">{quarterlyReportData.totals.present}</p>
               </div>
-              <div className="bg-orange-600/20 border border-orange-500/30 rounded-xl p-4">
-                <p className="text-xs text-slate-400 font-medium mb-2">Total Absent</p>
-                <p className="text-2xl font-bold text-orange-300">{quarterlyReportData.totals.absent}</p>
+              <div className="bg-orange-600/20 border border-orange-500/30 rounded-lg p-2.5">
+                <p className="text-[10px] text-slate-400 font-medium mb-1">Total Absent</p>
+                <p className="text-lg font-bold text-orange-300">{quarterlyReportData.totals.absent}</p>
               </div>
-              <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-xl p-4">
-                <p className="text-xs text-slate-400 font-medium mb-2">Total Visitors</p>
-                <p className="text-2xl font-bold text-emerald-300">{quarterlyReportData.totals.visitors}</p>
+              <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-lg p-2.5">
+                <p className="text-[10px] text-slate-400 font-medium mb-1">Total Visitors</p>
+                <p className="text-lg font-bold text-emerald-300">{quarterlyReportData.totals.visitors}</p>
               </div>
             </div>
 
