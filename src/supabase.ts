@@ -118,7 +118,8 @@ export async function saveMember(member: Member) {
         date_of_birth: member.date_of_birth,
         dob_month: member.dob_month,
         dob_day: member.dob_day,
-        is_active: member.is_active
+        day_born: member.day_born,
+        active: member.is_active
       })
       .eq('id', memberId);
     
@@ -142,7 +143,8 @@ export async function saveMember(member: Member) {
         date_of_birth: member.date_of_birth,
         dob_month: member.dob_month,
         dob_day: member.dob_day,
-        is_active: member.is_active ?? true
+        day_born: member.day_born,
+        active: member.is_active ?? true
       });
     
     if (error) {
@@ -213,7 +215,6 @@ export async function saveAttendance(
     const memberAttendanceRecords = normalizedRecords.map((record) => ({
       attendance_id: attendanceData.id,
       member_id: record.memberId,
-      member_name: record.memberName || record.memberId,
       class_number: classNumber.toString(),
       status: record.status,
     }));

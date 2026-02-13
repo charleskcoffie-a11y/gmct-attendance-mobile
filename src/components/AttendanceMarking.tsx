@@ -31,6 +31,7 @@ interface MemberFormData {
   dob_day?: string;
   dob_month?: string;
   dob_year?: string;
+  day_born?: string;
   is_active?: boolean;
 }
 
@@ -78,13 +79,20 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     date_of_birth: "",
     dob_day: "",
     dob_month: "",
-    dob_year: ""
+    dob_year: "",
+    day_born: ""
   });
   const [existingAttendance, setExistingAttendance] = useState<any>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [weeklyDuplicateWarning, setWeeklyDuplicateWarning] = useState<any>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(!!isEditModeProp);
+
+  // Get current day of week name
+  const getCurrentDayOfWeek = () => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return days[new Date().getDay()];
+  };
 
   useEffect(() => {
     loadMembers();
@@ -335,6 +343,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       dob_day: "",
       dob_month: "",
       dob_year: "",
+      day_born: getCurrentDayOfWeek(),
       is_active: true
     });
     setShowMemberForm(true);
@@ -370,6 +379,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       dob_day: member.dob_day ? String(member.dob_day) : (dateParts.day || ""),
       dob_month: member.dob_month ? String(member.dob_month) : (dateParts.month || ""),
       dob_year: dateParts.year || "",
+      day_born: member.day_born || "",
       is_active: member.is_active ?? true
     });
     setShowMemberForm(true);
@@ -389,16 +399,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         : undefined;
 
       const existingDateParts = parseDateParts(currentMember?.date_of_birth);
-      const dobMonth = isAdminView
-        ? (memberFormData.dob_month || existingDateParts.month || "")
-        : (existingDateParts.month || memberFormData.dob_month || "");
-      const dobDay = memberFormData.dob_day || existingDateParts.day || "";
-      const dobYear = memberFormData.dob_year || existingDateParts.year || "";
-
-      const hasDob = dobYear && dobMonth && dobDay;
-      const composedDob = hasDob
-        ? `${dobYear}-${pad2(Number(dobMonth))}-${pad2(Number(dobDay))}`
-        : memberFormData.date_of_birth || currentMember?.date_of_birth;
+      const dobMonth = memberFormData.dob_month || existingDateParts.month || currentMember?.dob_month || "";
+      const dobDay = memberFormData.dob_day || existingDateParts.day || currentMember?.dob_day || "";
 
       const newMember: Member = {
         id: editingMember?.id || "",
@@ -409,10 +411,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         city: isAdminView || !isEditing ? memberFormData.city : currentMember?.city,
         province: isAdminView || !isEditing ? memberFormData.province : currentMember?.province,
         postal_code: isAdminView || !isEditing ? memberFormData.postal_code : currentMember?.postal_code,
-        phoneNumber: isAdminView || !isEditing ? memberFormData.phoneNumber : (currentMember?.phone || currentMember?.phoneNumber),
-        date_of_birth: composedDob,
-        dob_month: dobMonth ? Number(dobMonth) : currentMember?.dob_month,
-        dob_day: dobDay ? Number(dobDay) : currentMember?.dob_day,
+        phoneNumber: memberFormData.phoneNumber || currentMember?.phone || currentMember?.phoneNumber,
+        dob_month: dobMonth ? Number(dobMonth) : undefined,
+        dob_day: dobDay ? Number(dobDay) : undefined,
+        day_born: memberFormData.day_born || currentMember?.day_born,
         is_active: memberFormData.is_active ?? currentMember?.is_active ?? true
       };
 
@@ -433,6 +435,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         dob_day: "",
         dob_month: "",
         dob_year: "",
+        day_born: "",
         is_active: true
       });
       await loadMembers();
@@ -834,13 +837,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                           phoneNumber: e.target.value,
                         })
                       }
-                      disabled={restrictFields}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Phone number"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
                       Address
                     </label>
                     <input
@@ -849,15 +851,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                       onChange={(e) =>
                         setMemberFormData({ ...memberFormData, address: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Address"
                     />
                   </div>
                   {isAdminView && (
-                    <>
+                    <>  
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-semibold text-slate-300 mb-2">
                             City
                           </label>
                           <input
@@ -866,12 +868,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                             onChange={(e) =>
                               setMemberFormData({ ...memberFormData, city: e.target.value })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="City"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-semibold text-slate-300 mb-2">
                             Province
                           </label>
                           <input
@@ -880,13 +882,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                             onChange={(e) =>
                               setMemberFormData({ ...memberFormData, province: e.target.value })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Province"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-semibold text-slate-300 mb-2">
                           Postal Code
                         </label>
                         <input
@@ -895,61 +897,79 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                           onChange={(e) =>
                             setMemberFormData({ ...memberFormData, postal_code: e.target.value })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Postal code"
                         />
                       </div>
                     </>
                   )}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">
                         Birth Day
                       </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={31}
+                      <select
                         value={memberFormData.dob_day || ""}
                         onChange={(e) =>
                           setMemberFormData({ ...memberFormData, dob_day: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Day"
-                      />
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Day</option>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                          <option key={day} value={day}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">
                         Birth Month
                       </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={12}
+                      <select
                         value={memberFormData.dob_month || ""}
                         onChange={(e) =>
                           setMemberFormData({ ...memberFormData, dob_month: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Month"
-                      />
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Month</option>
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                      </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Birth Year
-                      </label>
-                      <input
-                        type="number"
-                        min={1900}
-                        max={new Date().getFullYear()}
-                        value={memberFormData.dob_year || ""}
-                        onChange={(e) =>
-                          setMemberFormData({ ...memberFormData, dob_year: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Year"
-                      />
-                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
+                      Day Born (Day of Week)
+                    </label>
+                    <select
+                      value={memberFormData.day_born || ""}
+                      onChange={(e) =>
+                        setMemberFormData({ ...memberFormData, day_born: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Day of Week</option>
+                      <option value="Sunday">Sunday</option>
+                      <option value="Monday">Monday</option>
+                      <option value="Tuesday">Tuesday</option>
+                      <option value="Wednesday">Wednesday</option>
+                      <option value="Thursday">Thursday</option>
+                      <option value="Friday">Friday</option>
+                      <option value="Saturday">Saturday</option>
+                    </select>
                   </div>
                   <div className="flex items-center">
                     <input
@@ -959,9 +979,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                       onChange={(e) =>
                         setMemberFormData({ ...memberFormData, is_active: e.target.checked })
                       }
-                      className="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                      disabled={!isAdminView}
+                      className="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    <label htmlFor="is_active" className="ml-2 text-sm font-medium text-gray-700">
+                    <label htmlFor="is_active" className="ml-2 text-sm font-medium text-slate-300 disabled:opacity-50">
                       Active Member
                     </label>
                   </div>
@@ -988,6 +1009,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                           dob_day: "",
                           dob_month: "",
                           dob_year: "",
+                          day_born: "",
                           is_active: true
                         });
                         setEditingMember(null);

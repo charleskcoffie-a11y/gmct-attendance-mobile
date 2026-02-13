@@ -8,32 +8,29 @@
 
 🍎 IPHONE INSTALLATION (Safari)
 
-1. Open Safari browser on your iPhone
-2. Go to: [your-app-url]
-3. Tap the Share button (box with arrow at bottom)
-4. Scroll down and tap "Add to Home Screen"
-5. Name it "GMCT Attendance" (or your preferred name)
-6. Tap "Add"
-7. The app icon will appear on your home screen
-8. Tap to launch the app
+1. Open the link
+2. Tap the Share button (box with arrow at bottom)
+3. Scroll down and tap "Add to Home Screen"
+4. Name it "GMCT Attendance" (or your preferred name)
+5. Tap "Add"
+6. The app icon will appear on your home screen
+7. Tap to launch the app
 
 ✨ FEATURES ON IPHONE:
    • Works like a native app
    • Can use offline (attendance data syncs when online)
-   • Touch ID / Face ID support
    • Runs full screen without browser UI
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🤖 ANDROID INSTALLATION (Chrome)
 
-1. Open Chrome browser on your Android phone
-2. Go to: [your-app-url]
-3. Tap the three dots menu (⋮) at top right
-4. Tap "Install app" or "Add to Home screen"
-5. Confirm the installation dialog
-6. The app icon will appear on your home screen
-7. Tap to launch the app
+1. Open the link
+2. Tap the three dots menu (⋮) at top right
+3. Tap "Install app" or "Add to Home screen"
+4. Confirm the installation dialog
+5. The app icon will appear on your home screen
+6. Tap to launch the app
 
 ✨ FEATURES ON ANDROID:
    • Works like a native app
@@ -43,7 +40,34 @@
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔐 DEFAULT LOGIN CREDENTIALS
+� HOW TO CLOSE THE APP IN FULL-SCREEN MODE
+
+Since the app runs in full-screen mode like a native app, there's no close button.
+Use your phone's standard gestures to close it:
+
+🍎 IPHONE:
+  • Swipe up from the very bottom of the screen
+  • Pause briefly in the middle to see all open apps
+  • Swipe up on GMCT Attendance app to close it
+  
+  Quick Exit to Home Screen:
+  • Just swipe up quickly from the bottom → goes to home screen
+  • App stays running in background (normal iPhone behavior)
+
+🤖 ANDROID:
+  • Swipe up from the bottom and hold (or tap Recent Apps button)
+  • You'll see all your open apps
+  • Swipe the GMCT Attendance app away to close it
+  
+  Quick Exit to Home Screen:
+  • Swipe up quickly from bottom (or tap Home button)
+  • App stays running in background (normal Android behavior)
+
+💡 NOTE: This is how ALL full-screen apps work on mobile phones!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+�🔐 DEFAULT LOGIN CREDENTIALS
 
 FIRST TIME LOGIN - Use These Defaults:
 

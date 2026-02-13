@@ -36,7 +36,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
         <div className="flex-1">
           <h4 className="font-semibold text-white">{name}</h4>
           {(phone || phoneNumber) && (
-            <p className="text-sm text-slate-400">{phone || phoneNumber}</p>
+            <p className="text-sm text-slate-300">{phone || phoneNumber}</p>
           )}
         </div>
         <div className="flex gap-2">
