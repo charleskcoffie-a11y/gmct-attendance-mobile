@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import AttendanceMarking from './components/AttendanceMarking';
+import EditAttendanceMarking from './components/EditAttendanceMarking';
 import AdminAttendanceView from './components/AdminAttendanceView';
 import AdminSettings from './components/AdminSettings';
 import AdminClassSelector from './components/AdminClassSelector';
@@ -16,14 +17,14 @@ function App() {
   const [session, setSession] = useState<ClassSession | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminView, setAdminView] = useState<'attendance' | 'settings' | 'class'>('attendance');
-  const [classView, setClassView] = useState<'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings'>('attendance');
+  const [classView, setClassView] = useState<'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings' | 'edit'>('attendance');
   const [adminSelectedClass, setAdminSelectedClass] = useState<number | null>(null);
   const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
   const [editRecordDate, setEditRecordDate] = useState<string | null>(null);
   const [editRecordServiceType, setEditRecordServiceType] = useState<string>('sunday');
   const [editRecordMemberStatuses, setEditRecordMemberStatuses] = useState<Array<{ member_id: string; member_name: string; status: string }>>([]);
   const adminTabIndex = adminView === 'attendance' ? 0 : adminView === 'class' ? 1 : 2;
-  const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : 4;
+  const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : classView === 'settings' ? 4 : -1;
 
   useEffect(() => {
     const savedSession = localStorage.getItem('classSession');
@@ -44,9 +45,7 @@ function App() {
 
   // Reset edit record state when navigating away from attendance view
   useEffect(() => {
-    console.log(`🔄 classView changed to: ${classView}`);
-    if (classView !== 'attendance') {
-      console.log('🔄 Resetting edit state because navigating away from attendance');
+    if (classView !== 'attendance' && classView !== 'edit') {
       setEditRecordDate(null);
       setEditRecordServiceType('sunday');
       setEditRecordMemberStatuses([]);
@@ -239,18 +238,27 @@ function App() {
 
               {/* Content Area */}
               <div className="flex-1 overflow-y-auto bg-gray-50 pb-20">
-                {classView === 'attendance' ? (
+                {classView === 'edit' ? (
+                  <EditAttendanceMarking
+                    classNumber={session.classNumber}
+                    date={editRecordDate || ''}
+                    serviceType={editRecordServiceType as 'sunday' | 'bible-study'}
+                    initialMemberStatuses={editRecordMemberStatuses}
+                    onBack={() => {
+                      setClassView('records');
+                      setEditRecordDate(null);
+                      setEditRecordServiceType('sunday');
+                      setEditRecordMemberStatuses([]);
+                    }}
+                    onLogout={handleLogout}
+                  />
+                ) : classView === 'attendance' ? (
                   <>
-                    {console.log('🔍 Rendering AttendanceMarking:', { editRecordDate, editRecordServiceType, editRecordMemberStatusesLength: editRecordMemberStatuses?.length })}
                     <AttendanceMarking
                       classNumber={session.classNumber}
                       onLogout={handleLogout}
                       onShowReports={() => setClassView('reports')}
                       isAdminView={false}
-                      initialDate={editRecordDate || undefined}
-                      initialServiceType={editRecordDate ? editRecordServiceType : undefined}
-                      initialMemberStatuses={editRecordMemberStatuses?.length ? editRecordMemberStatuses : undefined}
-                      isEditMode={!!editRecordDate}
                     />
                     <SyncManager />
                   </>
@@ -273,7 +281,7 @@ function App() {
                       setEditRecordDate(date);
                       setEditRecordServiceType(serviceType);
                       setEditRecordMemberStatuses(memberStatuses);
-                      setClassView('attendance');
+                      setClassView('edit');
                     }}
                   />
                 ) : classView === 'reports' ? (

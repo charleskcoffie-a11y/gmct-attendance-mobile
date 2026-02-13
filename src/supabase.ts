@@ -289,7 +289,7 @@ export async function getMemberAttendanceForDateAndService(
 
   const result = (memberAttendanceData || []).map((record: any) => ({
     member_id: record.member_id,
-    member_name: record.member_name,
+    member_name: (record.member_name || '').trim().replace(/\s+/g, ' '),
     status: (record.status || '').toString().trim().toLowerCase(),
   }));
   

@@ -105,13 +105,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   useEffect(() => {
     if (initialDate) {
       console.log('Edit mode detected, setting date and service type');
+      // Set isEditMode FIRST before changing dates so the loadAttendanceRecord effect sees it
+      setIsEditMode(true);
       setSelectedDate(initialDate);
     }
     if (initialServiceType) {
       setServiceType(initialServiceType as ServiceType);
-    }
-    if (initialDate || initialServiceType) {
-      setIsEditMode(true);
     }
   }, [initialDate, initialServiceType]);
 
@@ -208,11 +207,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   useEffect(() => {
     // Reset modal when date/service changes
     setShowDuplicateModal(false);
-    // Skip loading check if in edit mode (we already have the data)
-    if (!isEditMode) {
+    // Skip loading if in edit mode OR if we have initial member statuses (means we're editing)
+    if (!isEditMode && !initialMemberStatuses) {
       loadAttendanceRecord();
     }
-  }, [selectedDate, serviceType, isEditMode]);
+  }, [selectedDate, serviceType, isEditMode, initialMemberStatuses]);
 
   // Ensure date is always today's date (in case app runs past midnight)
   useEffect(() => {
