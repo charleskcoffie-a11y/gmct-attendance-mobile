@@ -166,10 +166,13 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
       const { data, error: dbError } = await supabase
         .from("attendance")
         .select("attendance_date, service_type")
-        .eq("class_number", formData.classNumber)
+        .eq("class_number", String(formData.classNumber))
         .order("attendance_date", { ascending: false });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error("Error loading attendance dates:", dbError);
+        return;
+      }
 
       if (data && data.length > 0) {
         // Extract available years and sort descending (newest first)
@@ -229,7 +232,7 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
       let query = supabase
         .from("attendance")
         .select("*")
-        .eq("class_number", formData.classNumber)
+        .eq("class_number", String(formData.classNumber))
         .eq("attendance_date", recentDate);
 
       if (recentAttendanceFilter !== "total") {
@@ -238,7 +241,11 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
 
       const { data, error: dbError } = await query;
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error("Error loading attendance count:", dbError);
+        setRecentAttendanceCount(0);
+        return;
+      }
 
       setRecentAttendanceCount(data ? data.length : 0);
     } catch (err) {

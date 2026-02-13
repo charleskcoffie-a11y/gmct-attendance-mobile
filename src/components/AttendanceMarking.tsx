@@ -824,19 +824,22 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                   )}
                   <div>
                     <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Phone
+                      Phone (9 digits)
                     </label>
                     <input
                       type="tel"
                       value={memberFormData.phoneNumber || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        // Only allow digits and limit to 9 digits
+                        const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 9);
                         setMemberFormData({
                           ...memberFormData,
-                          phoneNumber: e.target.value,
-                        })
-                      }
+                          phoneNumber: digitsOnly,
+                        });
+                      }}
+                      maxLength={9}
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Phone number"
+                      placeholder="Phone number (9 digits)"
                     />
                   </div>
                   <div>
