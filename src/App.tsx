@@ -44,7 +44,9 @@ function App() {
 
   // Reset edit record state when navigating away from attendance view
   useEffect(() => {
+    console.log(`🔄 classView changed to: ${classView}`);
     if (classView !== 'attendance') {
+      console.log('🔄 Resetting edit state because navigating away from attendance');
       setEditRecordDate(null);
       setEditRecordServiceType('sunday');
       setEditRecordMemberStatuses([]);
@@ -239,6 +241,7 @@ function App() {
               <div className="flex-1 overflow-y-auto bg-gray-50 pb-20">
                 {classView === 'attendance' ? (
                   <>
+                    {console.log('🔍 Rendering AttendanceMarking:', { editRecordDate, editRecordServiceType, editRecordMemberStatusesLength: editRecordMemberStatuses?.length })}
                     <AttendanceMarking
                       classNumber={session.classNumber}
                       onLogout={handleLogout}
@@ -246,7 +249,8 @@ function App() {
                       isAdminView={false}
                       initialDate={editRecordDate || undefined}
                       initialServiceType={editRecordDate ? editRecordServiceType : undefined}
-                      initialMemberStatuses={editRecordDate ? editRecordMemberStatuses : undefined}
+                      initialMemberStatuses={editRecordMemberStatuses?.length ? editRecordMemberStatuses : undefined}
+                      isEditMode={!!editRecordDate}
                     />
                     <SyncManager />
                   </>

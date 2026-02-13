@@ -12,6 +12,7 @@ interface AttendanceMarkingProps {
   initialDate?: string;
   initialServiceType?: string;
   initialMemberStatuses?: Array<{ member_id: string; member_name: string; status: string }>;
+  isEditMode?: boolean;
 }
 
 interface MemberWithStatus extends Member {
@@ -41,6 +42,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   initialDate,
   initialServiceType,
   initialMemberStatuses,
+  isEditMode: isEditModeProp,
 }) => {
   // Helper function to get local date string in YYYY-MM-DD format
   const getLocalDateString = () => {
@@ -66,7 +68,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [memberSearch, setMemberSearch] = useState("");
   const [selectionChanged, setSelectionChanged] = useState(false);
   const initialStatusesAppliedRef = React.useRef(false);
-  const previousInitialStatusesRef = React.useRef<Array<{ member_id: string; member_name: string; status: string }> | undefined>(undefined);
+  const previousInitialStatusesRef = React.useRef<{ prevKey?: string | undefined }>({});
   const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
     member_number: "",
@@ -83,7 +85,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [weeklyDuplicateWarning, setWeeklyDuplicateWarning] = useState<any>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(!!initialMemberStatuses);
+  const [isEditMode, setIsEditMode] = useState(!!isEditModeProp);
 
   useEffect(() => {
     loadMembers();
@@ -125,15 +127,22 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     if (!initialMemberStatuses || initialMemberStatuses.length === 0) {
       console.log('❌ No initial member statuses provided');
       initialStatusesAppliedRef.current = false;
-      previousInitialStatusesRef.current = undefined;
+      previousInitialStatusesRef.current = { prevKey: undefined };
       return;
     }
 
     // Check if this is a new batch of initialMemberStatuses (editing a different record)
-    if (previousInitialStatusesRef.current !== initialMemberStatuses) {
+    // Use count and first element to detect new sessions since array reference changes each time
+    const statusKey = initialMemberStatuses.length > 0 
+      ? `${initialMemberStatuses.length}-${initialMemberStatuses[0]?.member_id}`
+      : '';
+    const prevKey = previousInitialStatusesRef.current?.prevKey || '';
+    
+    if (statusKey !== prevKey) {
       console.log('🔄 New initialMemberStatuses detected, resetting ref for new edit session');
+      console.log(`   Old key: ${prevKey}, New key: ${statusKey}`);
       initialStatusesAppliedRef.current = false;
-      previousInitialStatusesRef.current = initialMemberStatuses;
+      previousInitialStatusesRef.current = { prevKey: statusKey };
     }
 
     // Don't apply if already applied in this session
@@ -149,20 +158,32 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
 
     console.log('✅ Ready to apply! Initial statuses:', initialMemberStatuses);
-    console.log('✅ Current members:', members.map(m => ({ id: m.id, name: m.name })));
+    console.log('✅ Current members:', members.map(m => ({ id: m.id, name: m.name, idType: typeof m.id })));
+    console.log('✅ Initial statuses details:', initialMemberStatuses.map(s => ({ 
+      member_id: s.member_id, 
+      member_id_type: typeof s.member_id,
+      member_name: s.member_name, 
+      status: s.status 
+    })));
 
     const updatedMembers = members.map((member) => {
       const existingStatus = initialMemberStatuses.find(
         (s) => {
           const idMatch = String(s.member_id) === String(member.id);
-          const nameMatch = s.member_name?.toLowerCase() === member.name?.toLowerCase();
-          console.log(`  Checking ${member.name} (id: ${member.id}): idMatch=${idMatch}, nameMatch=${nameMatch}`);
+          // Normalize both names: lowercase, trim, and collapse multiple spaces
+          const normalizedStoredName = s.member_name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
+          const normalizedMemberName = member.name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
+          const nameMatch = normalizedStoredName === normalizedMemberName;
+          console.log(`  Checking ${member.name} (id: ${member.id}, idType: ${typeof member.id})`);
+          console.log(`    Against: member_id=${s.member_id} (type: ${typeof s.member_id}), member_name=${s.member_name}`);
+          console.log(`    Normalized: "${normalizedMemberName}" vs "${normalizedStoredName}"`);
+          console.log(`    idMatch=${idMatch}, nameMatch=${nameMatch}`);
           return idMatch || nameMatch;
         }
       );
       
       if (existingStatus) {
-        console.log(`  ✅ → Matched ${member.name}: ${existingStatus.status}`);
+        console.log(`  ✅ → Matched ${member.name}: status=${existingStatus.status}, normalized=${normalizeStatus(existingStatus.status)}`);
       } else {
         console.log(`  ❌ → No match for ${member.name}, setting to absent`);
       }
@@ -213,10 +234,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     setError(null);
     try {
       const loadedMembers = await getClassMembers(classNumber);
+      console.log('📥 Loaded members from DB:', loadedMembers);
       const membersWithStatus: MemberWithStatus[] = (loadedMembers as Member[]).map((m) => ({
         ...m,
         attendanceStatus: "absent" as const,
       }));
+      console.log('📝 Members with status initialized:', membersWithStatus.map(m => ({ id: m.id, name: m.name })));
       setMembers(membersWithStatus);
     } catch (err) {
       setError(
