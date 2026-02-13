@@ -149,43 +149,43 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-blue-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">Total Records</p>
-          <p className="text-2xl font-bold text-blue-400">{records.length}</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-blue-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">Total Records</p>
+          <p className="text-xl font-bold text-blue-400 mt-0.5">{records.length}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-purple-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">🙏 Sunday</p>
-          <p className="text-2xl font-bold text-purple-400">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-purple-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">🙏 Sunday</p>
+          <p className="text-xl font-bold text-purple-400 mt-0.5">
             {records.filter((r) => r.service_type === "sunday").length}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-green-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">📖 Bible Study</p>
-          <p className="text-2xl font-bold text-green-400">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-green-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">📖 Bible Study</p>
+          <p className="text-xl font-bold text-green-400 mt-0.5">
             {records.filter((r) => r.service_type === "bible-study").length}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-emerald-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">✅ Present</p>
-          <p className="text-2xl font-bold text-emerald-400">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-emerald-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">✅ Present</p>
+          <p className="text-xl font-bold text-emerald-400 mt-0.5">
             {records.reduce((sum, r) => sum + (r.total_members_present || 0), 0)}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-orange-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">🤒 Sick</p>
-          <p className="text-2xl font-bold text-orange-400">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-orange-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">🤒 Sick</p>
+          <p className="text-xl font-bold text-orange-400 mt-0.5">
             {records.reduce((sum, r) => sum + (r.total_members_sick || 0), 0)}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-3 hover:border-indigo-500 transition-all hover:shadow-xl">
-          <p className="text-xs font-bold text-slate-400 mb-1 uppercase">✈️ Travel</p>
-          <p className="text-2xl font-bold text-indigo-400">
+        <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg border border-slate-600 p-2 hover:border-indigo-500 transition-all hover:shadow-xl">
+          <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">✈️ Travel</p>
+          <p className="text-xl font-bold text-indigo-400 mt-0.5">
             {records.reduce((sum, r) => sum + (r.total_members_travel || 0), 0)}
           </p>
         </div>
