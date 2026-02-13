@@ -28,6 +28,8 @@ export interface AttendanceRecord {
   class_leader_name?: string;
   total_members_present?: number;
   total_members_absent?: number;
+  total_members_sick?: number;
+  total_members_travel?: number;
   total_visitors?: number;
   created_at?: string;
 }

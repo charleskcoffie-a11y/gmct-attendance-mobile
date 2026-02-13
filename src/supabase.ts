@@ -177,6 +177,8 @@ export async function saveAttendance(
   // Calculate summary stats
   const totalMembersPresent = normalizedRecords.filter(r => r.status === 'present').length;
   const totalMembersAbsent = normalizedRecords.filter(r => r.status === 'absent').length;
+  const totalMembersSick = normalizedRecords.filter(r => r.status === 'sick').length;
+  const totalMembersTravel = normalizedRecords.filter(r => r.status === 'travel').length;
   
   // Upsert attendance summary record
   const { data: attendanceData, error: attendanceError } = await supabase
@@ -188,6 +190,8 @@ export async function saveAttendance(
       class_leader_name: classLeaderName || `Class ${classNumber} Leader`,
       total_members_present: totalMembersPresent,
       total_members_absent: totalMembersAbsent,
+      total_members_sick: totalMembersSick,
+      total_members_travel: totalMembersTravel,
       total_visitors: 0,
     }, { 
       onConflict: 'class_number,attendance_date,service_type' 
