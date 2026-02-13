@@ -637,60 +637,62 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           </div>
 
           {/* Service Type & Date Selector */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-400 mb-2 block">📋 Service Type</label>
-              <select
-                value={serviceType}
-                onChange={(e) => {
-                  setServiceType(e.target.value as ServiceType);
-                  setSelectionChanged(false); // Reset when service type changes
-                }}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-slate-600 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              >
-                <option value="sunday">🙏 Sunday Service</option>
-                <option value="bible-study">📖 Bible Study</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-400 mb-2 block">📅 Date to Record</label>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-700 border-2 border-blue-600/50 transition-all">
-                <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  disabled
-                  className="flex-1 bg-transparent text-white text-sm focus:outline-none font-medium cursor-not-allowed opacity-90"
-                />
+          <div className="space-y-4">
+            {/* Service Type and Date in one row on mobile */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 mb-2 block">📋 Service Type</label>
+                <select
+                  value={serviceType}
+                  onChange={(e) => {
+                    setServiceType(e.target.value as ServiceType);
+                    setSelectionChanged(false); // Reset when service type changes
+                  }}
+                  className="w-full px-3 py-3 rounded-xl bg-slate-700 border-2 border-slate-600 text-white text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                >
+                  <option value="sunday">🙏 Sunday Service</option>
+                  <option value="bible-study">📖 Bible Study</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 mb-2 block">📅 Date to Record</label>
+                <div className="flex items-center gap-2 px-3 py-3 rounded-xl bg-slate-700 border-2 border-blue-600/50 transition-all">
+                  <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    disabled
+                    className="flex-1 bg-transparent text-white text-base focus:outline-none font-medium cursor-not-allowed opacity-90"
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex items-end gap-2">
+            
+            {/* Action buttons in a separate row */}
+            <div className="grid grid-cols-2 gap-3">
               {onShowReports && (
                 <button
                   onClick={onShowReports}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg"
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg"
                 >
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Reports</span>
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Reports</span>
                 </button>
               )}
               {onBackToClasses && (
                 <button
                   onClick={onBackToClasses}
-                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all"
+                  className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-semibold transition-all"
                 >
-                  <span className="hidden sm:inline">Back</span>
-                  <span className="sm:hidden">←</span>
+                  ← Back
                 </button>
               )}
-            </div>
-            <div className="flex items-end">
               <button
                 onClick={onLogout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded-xl font-semibold transition-all"
+                className="col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-red-600/20 hover:bg-red-600/30 border-2 border-red-500/30 text-red-300 rounded-xl font-semibold transition-all"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
               </button>
             </div>
           </div>
