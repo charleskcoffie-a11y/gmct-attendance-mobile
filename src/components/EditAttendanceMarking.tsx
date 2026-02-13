@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { saveAttendance, getClassMembers } from "../supabase";
 import { Member } from "../types";
-import { LogOut, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
+import { LogOut, AlertCircle, ArrowLeft } from "lucide-react";
 
 interface EditAttendanceMarkingProps {
   classNumber: number;
@@ -143,6 +143,18 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 pb-24">
+      {/* Success Overlay */}
+      {success && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-emerald-600/95 border-2 border-emerald-400 rounded-2xl p-8 text-center max-w-md mx-4 shadow-2xl animate-bounce">
+            <div className="text-6xl mb-4">✅</div>
+            <h2 className="text-3xl font-bold text-white mb-2">Success!</h2>
+            <p className="text-emerald-100 text-lg mb-4">{success}</p>
+            <p className="text-emerald-200 text-sm">Returning to records...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg sticky top-0 z-10">
         <div className="flex items-center justify-between px-4 py-4">
@@ -162,7 +174,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
       </div>
 
       {/* Content */}
-      <div className="p-4 max-w-6xl mx-auto">
+      <div className="p-4 max-w-6xl mx-auto pb-32">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-700/20 border border-emerald-500/30 rounded-lg p-4">
@@ -188,13 +200,6 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
           <div className="mb-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <p className="text-red-300">{error}</p>
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-4 p-4 bg-green-900/30 border border-green-500/50 rounded-lg flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-            <p className="text-green-300">{success}</p>
           </div>
         )}
 
@@ -269,7 +274,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 to-slate-900/80 border-t border-slate-700 p-4">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-slate-900 to-slate-900/80 border-t border-slate-700 p-4">
           <div className="max-w-6xl mx-auto flex gap-3">
             <button
               onClick={onBack}
