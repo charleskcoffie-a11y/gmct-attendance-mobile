@@ -169,9 +169,14 @@ export async function saveAttendance(
   memberRecords: Array<{ memberId: string; status: string; memberName?: string }>,
   classLeaderName?: string
 ) {
+  const normalizedRecords = memberRecords.map((record) => ({
+    ...record,
+    status: (record.status || '').toString().trim().toLowerCase() || 'absent',
+  }));
+
   // Calculate summary stats
-  const totalMembersPresent = memberRecords.filter(r => r.status === 'present').length;
-  const totalMembersAbsent = memberRecords.filter(r => r.status === 'absent').length;
+  const totalMembersPresent = normalizedRecords.filter(r => r.status === 'present').length;
+  const totalMembersAbsent = normalizedRecords.filter(r => r.status === 'absent').length;
   
   // Upsert attendance summary record
   const { data: attendanceData, error: attendanceError } = await supabase
@@ -197,7 +202,7 @@ export async function saveAttendance(
 
   // Save individual member attendance records in bulk
   if (attendanceData && attendanceData.id) {
-    const memberAttendanceRecords = memberRecords.map((record) => ({
+    const memberAttendanceRecords = normalizedRecords.map((record) => ({
       attendance_id: attendanceData.id,
       member_id: record.memberId,
       member_name: record.memberName || record.memberId,
@@ -285,7 +290,7 @@ export async function getMemberAttendanceForDateAndService(
   const result = (memberAttendanceData || []).map((record: any) => ({
     member_id: record.member_id,
     member_name: record.member_name,
-    status: record.status,
+    status: (record.status || '').toString().trim().toLowerCase(),
   }));
   
   console.log('📤 Mapped result:', result);

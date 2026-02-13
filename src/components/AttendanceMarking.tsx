@@ -51,6 +51,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     return `${year}-${month}-${day}`;
   };
 
+  const normalizeStatus = (value?: string) =>
+    (value || "").toString().trim().toLowerCase();
+
   const [serviceType, setServiceType] = useState<ServiceType>("sunday");
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
@@ -63,6 +66,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [memberSearch, setMemberSearch] = useState("");
   const [selectionChanged, setSelectionChanged] = useState(false);
   const initialStatusesAppliedRef = React.useRef(false);
+  const previousInitialStatusesRef = React.useRef<Array<{ member_id: string; member_name: string; status: string }> | undefined>(undefined);
   const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
     member_number: "",
@@ -118,14 +122,21 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     console.log('members.length:', members.length);
     console.log('initialStatusesAppliedRef.current:', initialStatusesAppliedRef.current);
     
-    // Reset ref when initialMemberStatuses changes (new edit session)
     if (!initialMemberStatuses || initialMemberStatuses.length === 0) {
       console.log('❌ No initial member statuses provided');
       initialStatusesAppliedRef.current = false;
+      previousInitialStatusesRef.current = undefined;
       return;
     }
 
-    // Don't apply if already applied
+    // Check if this is a new batch of initialMemberStatuses (editing a different record)
+    if (previousInitialStatusesRef.current !== initialMemberStatuses) {
+      console.log('🔄 New initialMemberStatuses detected, resetting ref for new edit session');
+      initialStatusesAppliedRef.current = false;
+      previousInitialStatusesRef.current = initialMemberStatuses;
+    }
+
+    // Don't apply if already applied in this session
     if (initialStatusesAppliedRef.current) {
       console.log('⏭️ Already applied initial statuses, skipping');
       return;
@@ -156,10 +167,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         console.log(`  ❌ → No match for ${member.name}, setting to absent`);
       }
       
-      return {
-        ...member,
-        attendanceStatus: (existingStatus?.status as any) || 'absent',
-      };
+        return {
+          ...member,
+          attendanceStatus: (normalizeStatus(existingStatus?.status) || "absent") as any,
+        };
     });
     
     console.log('📝 Updated members with statuses:', updatedMembers.map(m => ({ name: m.name, status: m.attendanceStatus })));
@@ -454,11 +465,14 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     try {
       const memberRecords = members
         .filter((m) => m.attendanceStatus)
-        .map((m) => ({
-          memberId: m.id?.toString() || "",
-          memberName: m.name || "",
-          status: m.attendanceStatus || "absent",
-        }));
+        .map((m) => {
+          const normalizedStatus = normalizeStatus(m.attendanceStatus);
+          return {
+            memberId: m.id?.toString() || "",
+            memberName: m.name || "",
+            status: normalizedStatus || "absent",
+          };
+        });
 
       console.log("Member records to submit:", memberRecords);
       console.log("Present count:", memberRecords.filter(r => r.status === 'present').length);
@@ -524,16 +538,16 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const presentCount = members.filter(
-    (m) => m.attendanceStatus === "present"
+    (m) => normalizeStatus(m.attendanceStatus) === "present"
   ).length;
   const absentCount = members.filter(
-    (m) => m.attendanceStatus === "absent"
+    (m) => normalizeStatus(m.attendanceStatus) === "absent"
   ).length;
   const sickCount = members.filter(
-    (m) => m.attendanceStatus === "sick"
+    (m) => normalizeStatus(m.attendanceStatus) === "sick"
   ).length;
   const travelCount = members.filter(
-    (m) => m.attendanceStatus === "travel"
+    (m) => normalizeStatus(m.attendanceStatus) === "travel"
   ).length;
 
   // Temporarily disabled strict date validation for testing
@@ -1027,40 +1041,60 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                   <button
                     onClick={() => updateMemberStatus(member.id!, "present")}
                     className={`col-span-2 py-3 px-2 rounded-xl font-bold text-base transition ${
-                      member.attendanceStatus === "present"
-                        ? "bg-green-600 text-white shadow-lg"
+                      normalizeStatus(member.attendanceStatus) === "present"
+                        ? "bg-emerald-600 text-white shadow-lg border border-emerald-500"
                         : "bg-slate-700 text-slate-300 hover:bg-green-600/30 hover:text-green-300 border border-slate-600"
                     }`}
+                    style={
+                      normalizeStatus(member.attendanceStatus) === "present"
+                        ? { backgroundColor: "#059669", color: "#ffffff", borderColor: "#10b981" }
+                        : undefined
+                    }
                   >
-                    ✓ Present
+                    {normalizeStatus(member.attendanceStatus) === "present" ? "✓ Present" : "Present"}
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "absent")}
                     className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
-                      member.attendanceStatus === "absent"
+                      normalizeStatus(member.attendanceStatus) === "absent"
                         ? "bg-red-600 text-white border-red-500"
                         : "bg-slate-700 text-slate-300 hover:bg-red-600/30 hover:text-red-300 border border-slate-600"
                     }`}
+                    style={
+                      normalizeStatus(member.attendanceStatus) === "absent"
+                        ? { backgroundColor: "#dc2626", color: "#ffffff", borderColor: "#ef4444" }
+                        : undefined
+                    }
                   >
                     Absent
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "sick")}
-                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
-                      member.attendanceStatus === "sick"
+                    className={`py-2 px-2 rounded-lg text-sm transition border ${
+                      normalizeStatus(member.attendanceStatus) === "sick"
                         ? "bg-orange-600 text-white border-orange-500"
                         : "bg-slate-700 text-slate-300 hover:bg-orange-600/30 hover:text-orange-300 border border-slate-600"
                     }`}
+                    style={
+                      normalizeStatus(member.attendanceStatus) === "sick"
+                        ? { backgroundColor: "#ea580c", color: "#ffffff", borderColor: "#f97316" }
+                        : undefined
+                    }
                   >
                     Sick
                   </button>
                   <button
                     onClick={() => updateMemberStatus(member.id!, "travel")}
-                    className={`py-3 px-2 rounded-xl font-medium text-sm transition border ${
-                      member.attendanceStatus === "travel"
+                    className={`py-2 px-2 rounded-lg text-sm transition border ${
+                      normalizeStatus(member.attendanceStatus) === "travel"
                         ? "bg-purple-600 text-white border-purple-500"
                         : "bg-slate-700 text-slate-300 hover:bg-purple-600/30 hover:text-purple-300 border border-slate-600"
                     }`}
+                    style={
+                      normalizeStatus(member.attendanceStatus) === "travel"
+                        ? { backgroundColor: "#7c3aed", color: "#ffffff", borderColor: "#8b5cf6" }
+                        : undefined
+                    }
                   >
                     Travel
                   </button>
