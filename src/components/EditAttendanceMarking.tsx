@@ -41,10 +41,10 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const loadedMembers = await getClassMembers(classNumber);
+      const loadedMembers = (await getClassMembers(classNumber)) as Member[];
       
       // Apply the initial statuses to the loaded members
-      const membersWithStatuses: MemberWithStatus[] = loadedMembers.map((member) => {
+      const membersWithStatuses: MemberWithStatus[] = loadedMembers.map((member: Member) => {
         const existingStatus = initialMemberStatuses.find(
           (s) => {
             const idMatch = String(s.member_id) === String(member.id);
@@ -70,8 +70,8 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   };
 
   const updateMemberStatus = (memberId: string, status: string) => {
-    setMembers(
-      members.map((m) =>
+    setMembers((prevMembers) =>
+      prevMembers.map((m) =>
         m.id === memberId
           ? { ...m, attendanceStatus: status as any }
           : m

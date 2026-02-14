@@ -14,6 +14,7 @@ const ClassLeaderProfile = lazy(() => import('./components/ClassLeaderProfile'))
 const AttendanceRecords = lazy(() => import('./components/AttendanceRecords'));
 const RecentAttendanceView = lazy(() => import('./components/RecentAttendanceView'));
 const SyncManager = lazy(() => import('./components/SyncManager'));
+const WelcomeScreen = lazy(() => import('./components/WelcomeScreen'));
 
 // Loading fallback component
 const ComponentLoader = () => (
@@ -29,7 +30,7 @@ function App() {
   const [session, setSession] = useState<ClassSession | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminView, setAdminView] = useState<'attendance' | 'recent-attendance' | 'settings' | 'class'>('attendance');
-  const [classView, setClassView] = useState<'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings' | 'edit'>('attendance');
+  const [classView, setClassView] = useState<'welcome' | 'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings' | 'edit'>('attendance');
   const [adminSelectedClass, setAdminSelectedClass] = useState<number | null>(null);
   const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
   const [editRecordDate, setEditRecordDate] = useState<string | null>(null);
@@ -74,6 +75,8 @@ function App() {
     setIsAdmin(classNumber === -1);
     if (classNumber === -1) {
       setAdminView('class');
+    } else {
+      setClassView('welcome');
     }
     localStorage.setItem('classSession', JSON.stringify(newSession));
   };
@@ -289,7 +292,17 @@ function App() {
 
               {/* Content Area */}
               <div className="flex-1 overflow-y-auto bg-gray-50 pb-20">
-                {classView === 'edit' ? (
+                {classView === 'welcome' ? (
+                  <Suspense fallback={<ComponentLoader />}>
+                    <WelcomeScreen
+                      classNumber={session.classNumber}
+                      classLeaderName={localStorage.getItem('classLeaderName')}
+                      onMarkAttendance={() => setClassView('attendance')}
+                      onEditAttendance={() => setClassView('records')}
+                      onViewRecent={() => setClassView('recent-attendance')}
+                    />
+                  </Suspense>
+                ) : classView === 'edit' ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <EditAttendanceMarking
                       classNumber={session.classNumber}
@@ -357,6 +370,7 @@ function App() {
               </div>
 
               {/* Bottom Navigation - Mobile Optimized */}
+              {classView !== 'welcome' && (
               <div className="fixed bottom-2 left-1/2 z-40 w-[calc(100%-1rem)] max-w-md -translate-x-1/2 rounded-2xl border border-slate-700/70 bg-slate-900/90 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-1.5">
@@ -465,6 +479,7 @@ function App() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
         </>

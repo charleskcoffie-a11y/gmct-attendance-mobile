@@ -7,6 +7,11 @@ interface ClassLeaderProfileProps {
   classNumber: number;
 }
 
+interface AttendanceDateRow {
+  attendance_date: string;
+  service_type: "bible-study" | "sunday";
+}
+
 export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
   classNumber,
 }) => {
@@ -174,10 +179,12 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
         return;
       }
 
-      if (data && data.length > 0) {
+      const rows = (data || []) as AttendanceDateRow[];
+
+      if (rows.length > 0) {
         // Extract available years and sort descending (newest first)
         const allYears = [...new Set(
-          data.map(r => r.attendance_date.split("-")[0])
+          rows.map(r => r.attendance_date.split("-")[0])
         )].sort().reverse();
         setRecentAvailableYears(allYears);
 
@@ -188,16 +195,16 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
         }
 
         // Filter by service type
-        let filteredByService: any[] = [];
+        let filteredByService: AttendanceDateRow[] = [];
         switch (recentAttendanceFilter) {
           case "bible-study":
-            filteredByService = data.filter(r => r.service_type === "bible-study");
+            filteredByService = rows.filter(r => r.service_type === "bible-study");
             break;
           case "sunday":
-            filteredByService = data.filter(r => r.service_type === "sunday");
+            filteredByService = rows.filter(r => r.service_type === "sunday");
             break;
           case "total":
-            filteredByService = data;
+            filteredByService = rows;
             break;
         }
 

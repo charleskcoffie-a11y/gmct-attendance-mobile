@@ -6,10 +6,24 @@ import { Member } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+export const supabaseConfigError =
+  !SUPABASE_URL || !SUPABASE_ANON_KEY
+    ? 'Missing Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env or .env.local.'
+    : null;
+
+const createSupabaseStub = () =>
+  new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(supabaseConfigError || 'Supabase is not configured.');
+      }
+    }
+  ) as any;
+
+export const supabase = supabaseConfigError
+  ? createSupabaseStub()
+  : createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Fetch app settings including class access codes
 export async function getAppSettings(): Promise<any> {
@@ -215,6 +229,7 @@ export async function saveAttendance(
     const memberAttendanceRecords = normalizedRecords.map((record) => ({
       attendance_id: attendanceData.id,
       member_id: record.memberId,
+      member_name: (record.memberName || record.memberId || '').toString().trim(),
       class_number: classNumber.toString(),
       status: record.status,
     }));
@@ -566,7 +581,7 @@ export async function getClassLeaders() {
   }
   
   // Map from snake_case DB fields to camelCase
-  return (data || []).map(cl => ({
+  return (data || []).map((cl: any) => ({
     id: cl.id,
     username: cl.username,
     password: cl.password,
@@ -682,12 +697,12 @@ export async function getAbsenceSummary(
   }
 
   // Get all members for this class
-  const members = await getClassMembers(classNumber);
+  const members = (await getClassMembers(classNumber)) as Member[];
 
   // Count absences per member
   const summary: Record<string, { name: string; absent_count: number; sick_count: number; travel_count: number; total_absences: number }> = {};
 
-  members.forEach(member => {
+  members.forEach((member: Member) => {
     summary[member.id] = {
       name: member.name,
       absent_count: 0,
@@ -801,7 +816,7 @@ async function cleanupOldManualReports(classNumber: number) {
 
   // Delete all reports after the 5th most recent
   if (data.length > 5) {
-    const idsToDelete = data.slice(5).map(r => r.id);
+    const idsToDelete = data.slice(5).map((r: { id: string }) => r.id);
     const { error: deleteError } = await supabase
       .from('manual_reports')
       .delete()

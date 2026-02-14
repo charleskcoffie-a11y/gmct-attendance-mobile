@@ -18,6 +18,13 @@ interface ClassAttendanceSummary {
   count: number;
 }
 
+interface AttendanceRow {
+  attendance_date: string;
+  service_type: "bible-study" | "sunday";
+  class_number: string | number;
+  total_members_present?: number | null;
+}
+
 export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ classNumber }) => {
   const [recentAttendanceFilter, setRecentAttendanceFilter] = useState<"bible-study" | "sunday" | "total">("bible-study");
   const [recentAttendanceDates, setRecentAttendanceDates] = useState<string[]>([]);
@@ -114,16 +121,18 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
       console.log("Raw attendance data from DB:", data);
 
-      if (data && data.length > 0) {
+      const rows = (data || []) as AttendanceRow[];
+
+      if (rows.length > 0) {
         // Get available classes
-        const availableClasses = [...new Set(data.map(r => String(r.class_number)))].sort();
+        const availableClasses = [...new Set(rows.map(r => String(r.class_number)))].sort();
         console.log("Available classes:", availableClasses);
         setRecentAvailableClasses(availableClasses);
 
         // Filter by selected class or all classes
-        let filteredData = data;
+        let filteredData = rows;
         if (recentSelectedClass) {
-          filteredData = data.filter(r => String(r.class_number) === recentSelectedClass);
+          filteredData = rows.filter(r => String(r.class_number) === recentSelectedClass);
         }
         console.log("After class filter:", filteredData.length, "records");
 
@@ -324,16 +333,19 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         throw dbError;
       }
 
-      console.log("Week data query result:", data);
+      const rows = (data || []) as AttendanceRow[];
+
+      console.log("Week data query result:", rows);
 
       if (isAdminView) {
         // Admin view: show summary for all classes
-        if (data && data.length > 0) {
+        if (rows.length > 0) {
           const summaryMap = new Map<number, number>();
-          data.forEach(record => {
+          rows.forEach(record => {
             const classNum = record.class_number;
-            const currentCount = summaryMap.get(classNum) || 0;
-            summaryMap.set(classNum, currentCount + (Number(record.total_members_present) || 0));
+            const classNumber = typeof classNum === "string" ? parseInt(classNum, 10) : classNum;
+            const currentCount = summaryMap.get(classNumber) || 0;
+            summaryMap.set(classNumber, currentCount + (Number(record.total_members_present) || 0));
           });
           const summary = Array.from(summaryMap.entries())
             .map(([classNumber, count]) => ({ classNumber, count }))
@@ -345,8 +357,8 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         }
       } else {
         // Regular view: show single count for selected class
-        if (data && data.length > 0) {
-          const totalPresent = data.reduce((sum, record) => sum + (Number(record.total_members_present) || 0), 0);
+        if (rows.length > 0) {
+          const totalPresent = rows.reduce((sum, record) => sum + (Number(record.total_members_present) || 0), 0);
           console.log("Total members present:", totalPresent);
           setRecentAttendanceCount(totalPresent);
         } else {
