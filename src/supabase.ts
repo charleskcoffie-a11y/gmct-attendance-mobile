@@ -1,6 +1,6 @@
 // Supabase Service for GMCT Attendance Mobile App
 import { createClient } from '@supabase/supabase-js';
-import { Member } from './types';
+import { Member, MemberContribution, MemberContributionInput } from './types';
 
 // These should match your main app's Supabase credentials
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -85,30 +85,10 @@ export async function getClassMembers(classNumber: number) {
     return [];
   }
 
-  if (data && data.length > 0) {
-    return data.map((m: any) => ({
-      ...m,
-      id: String(m.id),
-      assignedClass: m.class_number ? parseInt(m.class_number, 10) : undefined,
-      phoneNumber: m.phone ?? m.phoneNumber
-    }));
-  }
-
-  const { data: fallbackData, error: fallbackError } = await supabase
-    .from('members')
-    .select('*')
-    .eq('assigned_class', classNumber)
-    .order('name', { ascending: true });
-
-  if (fallbackError) {
-    console.error('Error fetching class members (fallback):', fallbackError);
-    return [];
-  }
-
-  return (fallbackData || []).map((m: any) => ({
+  return (data || []).map((m: any) => ({
     ...m,
     id: String(m.id),
-    assignedClass: m.assigned_class ?? undefined,
+    assignedClass: m.class_number ? parseInt(m.class_number, 10) : undefined,
     phoneNumber: m.phone ?? m.phoneNumber
   }));
 }
@@ -122,7 +102,7 @@ export async function saveMember(member: Member) {
       .from('members')
       .update({
         name: member.name,
-        class_number: member.class_number || member.assignedClass?.toString(),
+        class_number: member.class_number,
         member_number: member.member_number,
         address: member.address,
         city: member.city,
@@ -147,7 +127,7 @@ export async function saveMember(member: Member) {
       .from('members')
       .insert({
         name: member.name,
-        class_number: member.class_number || member.assignedClass?.toString(),
+        class_number: member.class_number,
         member_number: member.member_number,
         address: member.address,
         city: member.city,
@@ -165,6 +145,304 @@ export async function saveMember(member: Member) {
       console.error('Error adding member:', error);
       throw error;
     }
+  }
+}
+
+// Member self-service profile update
+export async function updateMemberProfile(
+  memberId: string,
+  updates: Partial<Pick<Member, 'name' | 'phone' | 'address' | 'city' | 'province' | 'postal_code' | 'date_of_birth' | 'dob_month' | 'dob_day' | 'day_born'>>
+) {
+  const payload = {
+    name: updates.name?.trim(),
+    phone: updates.phone?.trim() || null,
+    address: updates.address?.trim() || null,
+    city: updates.city?.trim() || null,
+    province: updates.province?.trim() || null,
+    postal_code: updates.postal_code?.trim() || null,
+    date_of_birth: updates.date_of_birth?.trim() || null,
+    dob_month: updates.dob_month ?? null,
+    dob_day: updates.dob_day ?? null,
+    day_born: updates.day_born?.trim() || null,
+  };
+
+  const { data, error } = await supabase
+    .from('members')
+    .update(payload)
+    .eq('id', memberId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error updating member profile:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+// Admin utility: reset a member's auth password to the default.
+export async function resetMemberPasswordToDefault(memberId: string, adminCode: string) {
+  const { data, error } = await supabase.functions.invoke('reset-member-password', {
+    body: {
+      memberId: memberId,
+      adminCode: adminCode,
+    },
+  });
+
+  if (error) {
+    console.error('Error resetting member password:', error);
+    throw error;
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+// Admin utility: bulk create auth accounts for all members who don't have them
+export async function bulkCreateMemberAuth(adminCode: string) {
+  const { data, error } = await supabase.functions.invoke('Bulk-Create-member-auth', {
+    body: {
+      adminCode: adminCode,
+    },
+  });
+
+  if (error) {
+    console.error('Error bulk creating member auth:', error);
+    throw error;
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+function normalizeContributionCategory(value: string | null | undefined): MemberContribution['category'] {
+  // Keep category values aligned with entries.type in the database.
+  // This prevents synthetic categories that don't exist in source data.
+  return (value || '').toString().trim().toLowerCase();
+}
+
+function toEntryType(category: MemberContributionInput['category']): string {
+  switch (category) {
+    case 'thanksgiving':
+    case 'thanksgiving-offering':
+      return 'thanksgiving-offering';
+    case 'building_fund':
+    case 'development-fund':
+      return 'development-fund';
+    default:
+      return category;
+  }
+}
+
+function isDeletedEntry(value: unknown): boolean {
+  if (value === true || value === 1) {
+    return true;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === 't' || normalized === '1' || normalized === 'yes';
+  }
+
+  return false;
+}
+
+function mapEntryRowToContribution(row: any): MemberContribution {
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    contributionDate: row.date,
+    category: normalizeContributionCategory(row.type),
+    amount: Number(row.amount || 0),
+    note: row.note || undefined,
+    created_at: row.created_at,
+    updated_at: row.last_updated || undefined,
+  };
+}
+
+async function getContributionEntryMemberContext(memberId: string): Promise<{ name: string | null; classNumber: string | null }> {
+  const { data, error } = await supabase
+    .from('members')
+    .select('name, class_number')
+    .eq('id', memberId)
+    .single();
+
+  if (error) {
+    console.warn('Could not load member context for entries write:', error);
+    return { name: null, classNumber: null };
+  }
+
+  return {
+    name: data?.name || null,
+    classNumber: data?.class_number || null,
+  };
+}
+
+async function getMemberContributionsFromLegacyTable(memberId: string): Promise<MemberContribution[]> {
+  const { data, error } = await supabase
+    .from('member_contributions')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('contribution_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching contributions from fallback table:', error);
+    throw error;
+  }
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    memberId: row.member_id,
+    contributionDate: row.contribution_date,
+    category: normalizeContributionCategory(row.category),
+    amount: Number(row.amount || 0),
+    note: row.note || undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
+export async function getAllContributionCategories(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('type')
+    .not('deleted', 'eq', true);
+
+  if (error) {
+    console.warn('Failed to fetch all contribution categories:', error);
+    return [];
+  }
+
+  const uniqueCategories = new Set<string>();
+  (data || []).forEach((row: any) => {
+    if (row.type) {
+      const normalized = normalizeContributionCategory(row.type);
+      if (normalized) {
+        uniqueCategories.add(normalized);
+      }
+    }
+  });
+
+  return Array.from(uniqueCategories).sort();
+}
+
+export async function getMemberContributions(memberId: string): Promise<MemberContribution[]> {
+  const { data, error } = await supabase
+    .from('entries')
+    .select('id, member_id, date, type, amount, note, created_at, last_updated, deleted')
+    .eq('member_id', memberId)
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.warn('Falling back to member_contributions table after entries query failure:', error);
+    return getMemberContributionsFromLegacyTable(memberId);
+  }
+
+  return (data || [])
+    .filter((row: any) => !isDeletedEntry(row.deleted))
+    .map((row: any) => mapEntryRowToContribution(row));
+}
+
+export async function addMemberContribution(
+  memberId: string,
+  input: MemberContributionInput
+): Promise<MemberContribution> {
+  const memberContext = await getContributionEntryMemberContext(memberId);
+  const entryType = toEntryType(input.category);
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('entries')
+    .insert({
+      id: crypto.randomUUID(),
+      date: input.contributionDate,
+      member_id: memberId,
+      member_name: memberContext.name || 'Member',
+      type: entryType,
+      fund: entryType === 'development-fund' ? 'development-fund' : 'General',
+      method: 'cash',
+      amount: input.amount,
+      note: input.note?.trim() || '',
+      class_number: memberContext.classNumber || '',
+      created_by: memberContext.name || 'Member',
+      updated_by: memberContext.name || 'Member',
+      last_updated: nowIso,
+      deleted: false,
+      created_at: nowIso,
+    })
+    .select('id, member_id, date, type, amount, note, created_at, last_updated, deleted')
+    .single();
+
+  if (error) {
+    console.error('Error adding contribution to entries table:', error);
+    throw error;
+  }
+
+  return mapEntryRowToContribution(data);
+}
+
+export async function updateMemberContribution(
+  contributionId: string,
+  memberId: string,
+  input: MemberContributionInput
+): Promise<MemberContribution> {
+  const memberContext = await getContributionEntryMemberContext(memberId);
+  const entryType = toEntryType(input.category);
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('entries')
+    .update({
+      date: input.contributionDate,
+      type: entryType,
+      fund: entryType === 'development-fund' ? 'development-fund' : 'General',
+      amount: input.amount,
+      note: input.note?.trim() || '',
+      updated_by: memberContext.name || 'Member',
+      last_updated: nowIso,
+    })
+    .eq('id', contributionId)
+    .eq('member_id', memberId)
+    .select('id, member_id, date, type, amount, note, created_at, last_updated, deleted')
+    .single();
+
+  if (error) {
+    console.error('Error updating contribution in entries table:', error);
+    throw error;
+  }
+
+  return mapEntryRowToContribution(data);
+}
+
+export async function deleteMemberContribution(contributionId: string, memberId: string) {
+  const memberContext = await getContributionEntryMemberContext(memberId);
+  const nowIso = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('entries')
+    .update({
+      deleted: true,
+      deleted_by: memberContext.name || 'Member',
+      deleted_reason: 'Deleted by member in contributions dashboard',
+      deleted_at: nowIso,
+      updated_by: memberContext.name || 'Member',
+      last_updated: nowIso,
+    })
+    .eq('id', contributionId)
+    .eq('member_id', memberId);
+
+  if (error) {
+    console.error('Error soft-deleting contribution in entries table:', error);
+    throw error;
   }
 }
 

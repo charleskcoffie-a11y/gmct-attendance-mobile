@@ -56,24 +56,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const normalizeStatus = (value?: string) =>
     (value || "").toString().trim().toLowerCase();
 
-  const getErrorMessage = (err: unknown) => {
-    if (!err) return "Unknown error";
-    if (typeof err === "string") return err;
-    if (err instanceof Error) return err.message || "Unknown error";
-    if (typeof err === "object") {
-      const anyErr = err as { message?: string; details?: string; hint?: string; code?: string };
-      const parts = [anyErr.message, anyErr.details, anyErr.hint, anyErr.code].filter(Boolean);
-      if (parts.length > 0) return parts.join(" | ");
-      try {
-        return JSON.stringify(err);
-      } catch {
-        return "Unknown error";
-      }
-    }
-    return "Unknown error";
-  };
-
-  const [serviceType, setServiceType] = useState<ServiceType>("bible-study");
+  const [serviceType, setServiceType] = useState<ServiceType>("sunday");
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,12 +87,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [weeklyDuplicateWarning, setWeeklyDuplicateWarning] = useState<any>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(!!isEditModeProp);
-  const isAttendanceLocked =
-    !isEditMode &&
-    (existingAttendance ||
-      (weeklyDuplicateWarning?.hasOtherRecord &&
-        weeklyDuplicateWarning?.serviceType === serviceType));
-  const attendanceLoadKeyRef = React.useRef<string>("");
 
   // Get current day of week name
   const getCurrentDayOfWeek = () => {
@@ -237,19 +214,11 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   useEffect(() => {
     // Reset modal when date/service changes
     setShowDuplicateModal(false);
-    setWeeklyDuplicateWarning(null);
-    setExistingAttendance(null);
     // Skip loading if in edit mode OR if we have initial member statuses (means we're editing)
     if (!isEditMode && !initialMemberStatuses) {
       loadAttendanceRecord();
     }
   }, [selectedDate, serviceType, isEditMode, initialMemberStatuses]);
-
-  useEffect(() => {
-    if (isAttendanceLocked) {
-      setShowDuplicateModal(true);
-    }
-  }, [isAttendanceLocked]);
 
   // Ensure date is always today's date (in case app runs past midnight)
   useEffect(() => {
@@ -281,7 +250,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     } catch (err) {
       setError(
         "Failed to load members: " +
-          getErrorMessage(err)
+          (err instanceof Error ? err.message : "Unknown error")
       );
     } finally {
       setLoading(false);
@@ -289,29 +258,24 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const loadAttendanceRecord = async () => {
-    const loadKey = `${classNumber}-${selectedDate}-${serviceType}`;
-    attendanceLoadKeyRef.current = loadKey;
     setAttendanceLoading(true);
     setWeeklyDuplicateWarning(null);
     try {
       // Check for attendance on the exact date/service combo
       const record = await getAttendanceByDateAndService(classNumber, selectedDate, serviceType);
-      if (attendanceLoadKeyRef.current !== loadKey) return;
       setExistingAttendance(record);
       
       // Skip duplicate warning check if in edit mode
       if (!isEditMode) {
         // Also check for any attendance in the same week for this service type
         const weeklyRecord = await checkWeeklyAttendance(classNumber, selectedDate, serviceType);
-        if (attendanceLoadKeyRef.current !== loadKey) return;
         
         if (weeklyRecord) {
           // There's attendance in this week for the same service type
           setWeeklyDuplicateWarning({
             date: weeklyRecord.attendance_date,
             totalMembers: weeklyRecord.total_members_present || 0,
-            hasOtherRecord: true,
-            serviceType
+            hasOtherRecord: true
           });
         }
       }
@@ -329,9 +293,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     } catch (err) {
       console.error('Error loading attendance:', err);
     } finally {
-      if (attendanceLoadKeyRef.current === loadKey) {
-        setAttendanceLoading(false);
-      }
+      setAttendanceLoading(false);
     }
   };
 
@@ -348,15 +310,15 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const updateMemberStatus = (memberId: string, status: string) => {
-    // If attendance is locked, show modal and block changes
-    if (isAttendanceLocked) {
+    // If duplicate warning exists, show modal and block selection
+    if (weeklyDuplicateWarning?.hasOtherRecord) {
       setShowDuplicateModal(true);
       return;
     }
     
     // Otherwise, update member status normally
-    setMembers((prevMembers) =>
-      prevMembers.map((m) =>
+    setMembers(
+      members.map((m) =>
         m.id === memberId
           ? { ...m, attendanceStatus: status as any }
           : m
@@ -479,7 +441,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     } catch (err) {
       setError(
         "Failed to save member: " +
-          getErrorMessage(err)
+          (err instanceof Error ? err.message : "Unknown error")
       );
     } finally {
       setLoading(false);
@@ -498,7 +460,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     } catch (err) {
       setError(
         "Failed to delete member: " +
-          getErrorMessage(err)
+          (err instanceof Error ? err.message : "Unknown error")
       );
     } finally {
       setLoading(false);
@@ -520,13 +482,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     if (serviceDateWarning) {
       console.warn("Date warning:", serviceDateWarning);
       setError(serviceDateWarning);
-      setSuccess(null);
-      return;
-    }
-
-    if (isAttendanceLocked) {
-      setShowDuplicateModal(true);
-      setError("Attendance already recorded for this period.");
       setSuccess(null);
       return;
     }
@@ -604,7 +559,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     } catch (err) {
       const errorMessage =
         "Failed to submit attendance: " +
-        getErrorMessage(err);
+        (err instanceof Error ? err.message : "Unknown error");
       console.error("❌ Submit error:", err);
       console.error("Error details:", JSON.stringify(err, null, 2));
       alert(`❌ ERROR: ${errorMessage}`);
@@ -659,9 +614,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
 
   const isEditing = Boolean(editingMember?.id);
   const restrictFields = !isAdminView && isEditing;
-  const lockDebugMessage = isAttendanceLocked
-    ? `Lock: existingAttendance=${existingAttendance ? "yes" : "no"}, weeklyDuplicate=${weeklyDuplicateWarning?.hasOtherRecord ? "yes" : "no"}, warningService=${weeklyDuplicateWarning?.serviceType || "n/a"}, currentService=${serviceType}`
-    : "";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 pb-24">
@@ -770,14 +722,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {lockDebugMessage && (
-        <div className="bg-slate-950/60 border-b border-slate-700/60 p-3">
-          <div className="max-w-7xl mx-auto text-slate-300 text-xs font-mono">
-            {lockDebugMessage}
           </div>
         </div>
       )}
@@ -1171,7 +1115,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     });
                     handleSubmitAttendance();
                   }}
-                  disabled={loading || !!serviceDateWarning || isAttendanceLocked}
+                  disabled={loading || !!serviceDateWarning || !!weeklyDuplicateWarning?.hasOtherRecord}
                   className={`flex-1 px-6 py-4 rounded-xl font-bold transition-all shadow-2xl border-2 flex items-center justify-center gap-2 text-lg ${
                     loading
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 animate-pulse'
@@ -1189,7 +1133,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         )}
 
         {/* Weekly Duplicate Warning Modal */}
-        {showDuplicateModal && (weeklyDuplicateWarning || existingAttendance) && (
+        {showDuplicateModal && weeklyDuplicateWarning && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl shadow-2xl border border-yellow-500/30 p-6 md:p-8 max-w-md w-full animate-in scale-100">
               <div className="flex items-start gap-4 mb-4">
@@ -1198,47 +1142,33 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-white mb-2">
-                    Attendance Already Recorded
+                    Already Recorded This Week
                   </h3>
                   <p className="text-slate-300 text-sm">
-                    {existingAttendance
-                      ? `An attendance record already exists for ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} on ${selectedDate}.`
-                      : `A ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded for this week.`}
+                    A {serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded for this week.
                   </p>
                 </div>
               </div>
 
               <div className="bg-slate-700/50 rounded-xl p-4 mb-6 border border-yellow-500/20">
                 <div className="space-y-2 text-sm">
-                  {weeklyDuplicateWarning && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Previous Recording:</span>
-                        <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.date}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Members Recorded:</span>
-                        <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.totalMembers} members</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Current Week:</span>
-                        <span className="text-yellow-300 font-semibold">Sunday - Saturday</span>
-                      </div>
-                    </>
-                  )}
-                  {existingAttendance && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Recorded Date:</span>
-                      <span className="text-yellow-300 font-semibold">{selectedDate}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Previous Recording:</span>
+                    <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.date}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Members Recorded:</span>
+                    <span className="text-yellow-300 font-semibold">{weeklyDuplicateWarning.totalMembers} members</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Current Week:</span>
+                    <span className="text-yellow-300 font-semibold">Sunday - Saturday</span>
+                  </div>
                 </div>
               </div>
 
               <p className="text-slate-400 text-sm mb-6">
-                {existingAttendance
-                  ? "This service type is already recorded for this date. Use Records to edit the existing entry instead of submitting a new one."
-                  : `A ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded on ${weeklyDuplicateWarning?.date}. You cannot record another ${serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} this week, but you can still submit the other service type.`}
+                A {serviceType === 'sunday' ? 'Sunday Service' : 'Bible Study'} attendance was already recorded on {weeklyDuplicateWarning?.date}. You cannot record another one for this week. Please select a different date or service type.
               </p>
 
               <div className="flex gap-3">

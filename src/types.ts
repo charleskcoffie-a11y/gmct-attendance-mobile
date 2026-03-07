@@ -2,8 +2,11 @@
 
 export interface Member {
   id: string;
+  email?: string;
   name: string;
-  assignedClass?: number;  // For internal use, maps to class_number
+  assignedClass?: number;  // Resolved class number that member can lead (from class_leaders)
+  classLeaderId?: string;
+  classLeaderName?: string;
   class_number?: string;
   member_number?: string;
   address?: string;
@@ -17,7 +20,29 @@ export interface Member {
   dob_day?: number;        // Day (1-31)
   day_born?: string;       // Day of week born (Sunday-Saturday)
   is_active?: boolean;     // Active member status
+  dev_fund_pledge?: boolean; // Whether member has pledged to development fund
   created_at?: string;
+  updated_at?: string;
+}
+
+export type ContributionCategory = string;
+
+export interface MemberContribution {
+  id: string;
+  memberId: string;
+  contributionDate: string;
+  category: ContributionCategory;
+  amount: number;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MemberContributionInput {
+  contributionDate: string;
+  category: ContributionCategory;
+  amount: number;
+  note?: string;
 }
 
 export type ServiceType = 'sunday' | 'bible-study';
@@ -151,6 +176,7 @@ export interface Database {
           active?: boolean;
           phoneNumber?: string;
           email?: string;
+          dev_fund_pledge?: boolean;
           created_at?: string;
         };
         Insert: any;
@@ -231,6 +257,44 @@ export interface Database {
           updated_by?: string;
           last_updated?: string;
           created_at?: string;
+        };
+        Insert: any;
+        Update: any;
+      };
+      member_contributions: {
+        Row: {
+          id: string;
+          member_id: string;
+          contribution_date: string;
+          category: ContributionCategory;
+          amount: number;
+          note?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: any;
+        Update: any;
+      };
+      entries: {
+        Row: {
+          id: string;
+          date: string;
+          member_id: string;
+          member_name?: string;
+          type: string;
+          fund?: string;
+          method?: string;
+          amount: number;
+          note?: string;
+          class_number?: string;
+          created_by?: string;
+          updated_by?: string;
+          last_updated?: string;
+          deleted?: boolean | string;
+          created_at?: string;
+          deleted_by?: string;
+          deleted_reason?: string;
+          deleted_at?: string;
         };
         Insert: any;
         Update: any;
