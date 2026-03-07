@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-512x512.svg'],
       manifest: {
-        name: 'GMCT Attendance',
-        short_name: 'Attendance',
-        description: 'GMCT Class Leader Attendance Marking App',
+        name: 'GMCT Connect',
+        short_name: 'Connect',
+        description: 'GMCT Member Engagement & Contributions App',
         theme_color: '#4f46e5',
         background_color: '#ffffff',
         display: 'standalone',

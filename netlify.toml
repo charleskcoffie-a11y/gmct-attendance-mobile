@@ -1,4 +1,4 @@
-# Netlify Configuration for GMCT Attendance Mobile App
+# Netlify Configuration for GMCT Connect
 
 [build]
   command = "npm run build"

@@ -2,7 +2,7 @@
   "name": "gmct-attendance-mobile",
   "version": "1.0.0",
   "type": "module",
-  "description": "Mobile PWA for GMCT class leader attendance marking",
+  "description": "Mobile PWA for GMCT member engagement and contributions",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

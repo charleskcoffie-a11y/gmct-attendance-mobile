@@ -1,6 +1,6 @@
-# GMCT Attendance Mobile App
+# GMCT Connect
 
-A Progressive Web App (PWA) for GMCT class leaders to mark attendance on their mobile devices.
+A Progressive Web App (PWA) for GMCT members to track contributions and engagement.
 
 ## Features
 
