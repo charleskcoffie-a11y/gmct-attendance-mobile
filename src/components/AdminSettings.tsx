@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { supabase } from "../supabase";
-import { ClassLeader } from "../types";
-import { AlertCircle, CheckCircle, Trash2, Edit2, Plus, ChevronDown } from "lucide-react";
+import { ClassLeader, Member } from "../types";
+import { AlertCircle, CheckCircle, Trash2, Edit2, Plus, ChevronDown, Search, X } from "lucide-react";
 
 interface AdminSettingsProps {
   onBack: () => void;
@@ -44,6 +44,11 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     environmentCache: false,
     databaseConnection: false,
   });
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [memberSearchResults, setMemberSearchResults] = useState<Member[]>([]);
+  const [selectedMemberForLeader, setSelectedMemberForLeader] = useState<Member | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [originalLeaderData, setOriginalLeaderData] = useState<Partial<ClassLeader> | null>(null);
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -134,7 +139,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       const { data, error } = await supabase
         .from("class_leaders")
         .select("*")
-        .order("username", { ascending: true });
+        .order("full_name", { ascending: true });
 
       if (error) {
         throw error;
@@ -143,7 +148,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       // Map from snake_case DB fields to camelCase for the component
       const leadersList: EditingLeader[] = (data || []).map((cl: any) => ({
         id: cl.id,
-        username: cl.username,
+        username: cl.username || cl.full_name?.toLowerCase().replace(/\s+/g, "_") || "",
         password: cl.password,
         classNumber: cl.class_number,
         accessCode: cl.access_code,
@@ -182,8 +187,63 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     }
   };
 
+  const searchMembers = async (query: string) => {
+    if (!query.trim()) {
+      setMemberSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .or(
+          `name.ilike.%${query}%,` +
+          `class_number.ilike.%${query}%,` +
+          `member_number.ilike.%${query}%,` +
+          `phone.ilike.%${query}%`
+        )
+        .limit(10);
+
+      if (error) throw error;
+      setMemberSearchResults(data || []);
+    } catch (err) {
+      console.error("Error searching members:", err);
+      setError("Failed to search members");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const selectMemberForLeader = (member: Member) => {
+    setSelectedMemberForLeader(member);
+    setMemberSearchQuery("");
+    setMemberSearchResults([]);
+    
+    // Pre-populate form fields with member data
+    const username = member.name?.toLowerCase().replace(/\s+/g, "_") || "";
+    // Auto-generate a temporary password for the class_leaders table
+    const tempPassword = Math.random().toString(36).slice(-8);
+    
+    setFormData({
+      username: username,
+      fullName: member.name || "",
+      classNumber: member.class_number || "",
+      email: `${username}@gmct.member`,  // Force new email format
+      phone: member.phone || "",
+      password: tempPassword,  // Auto-generated, not visible to member
+      accessCode: "",
+      active: true,
+    });
+  };
+
   const handleAddLeader = () => {
     setEditingId("new");
+    setMemberSearchQuery("");
+    setMemberSearchResults([]);
+    setSelectedMemberForLeader(null);
+    setOriginalLeaderData(null);
     setFormData({
       username: "",
       fullName: "",
@@ -196,13 +256,36 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
   const handleEditLeader = (leader: EditingLeader) => {
     setEditingId(leader.id);
     setFormData(leader);
+    setOriginalLeaderData(leader); // Save original data
+    setSelectedMemberForLeader(null);
+    setMemberSearchQuery("");
+    setMemberSearchResults([]);
   };
 
   const handleSaveLeader = async () => {
-    if (!formData.username || !formData.password || !formData.fullName) {
-      setError("Username, password, and full name are required");
+    // When adding from existing member, password is auto-generated
+    const isFromExistingMember = selectedMemberForLeader !== null;
+    
+    if (!formData.username || !formData.fullName) {
+      setError("Username and full name are required");
       return;
     }
+
+    if (!isFromExistingMember && !formData.password) {
+      setError("Password is required when creating a new class leader");
+      return;
+    }
+
+    const normalizedUsername = formData.username.trim();
+    const normalizedFullName = formData.fullName.trim();
+    const normalizedEmail = (
+      formData.email?.trim() || `${normalizedUsername.toLowerCase()}@gmct.member`
+    ).toLowerCase();
+    
+    // Auto-generate access code if empty (must be unique and not null)
+    const normalizedAccessCode = formData.accessCode?.trim() 
+      ? formData.accessCode.trim()
+      : `access_${normalizedUsername}_${Date.now()}`;
 
     setLoading(true);
     try {
@@ -211,34 +294,46 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
         const { error } = await supabase
           .from("class_leaders")
           .insert({
-            username: formData.username,
+            username: normalizedUsername,
             password: formData.password,
-            full_name: formData.fullName,
+            full_name: normalizedFullName,
             class_number: formData.classNumber,
-            access_code: formData.accessCode,
-            email: formData.email,
+            access_code: normalizedAccessCode,
+            email: normalizedEmail,
             phone: formData.phone,
             active: true,
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
         setSuccess("Class leader added successfully");
       } else if (editingId) {
         // Update existing leader in database
+        const updateData: any = {
+          username: normalizedUsername,
+          full_name: normalizedFullName,
+          class_number: formData.classNumber,
+          access_code: normalizedAccessCode,
+          email: normalizedEmail,
+          phone: formData.phone,
+        };
+        
+        // Only update password if it's provided and not empty
+        if (formData.password && formData.password.trim()) {
+          updateData.password = formData.password;
+        }
+        
         const { error } = await supabase
           .from("class_leaders")
-          .update({
-            username: formData.username,
-            password: formData.password,
-            full_name: formData.fullName,
-            class_number: formData.classNumber,
-            access_code: formData.accessCode,
-            email: formData.email,
-            phone: formData.phone,
-          })
+          .update(updateData)
           .eq("id", editingId);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Update error:", error);
+          throw error;
+        }
         setSuccess("Class leader updated successfully");
       }
 
@@ -246,12 +341,27 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       await loadClassLeaders();
       setEditingId(null);
       setFormData({});
+      setSelectedMemberForLeader(null);
+      setOriginalLeaderData(null);
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(
-        "Failed to save leader: " +
-          (err instanceof Error ? err.message : "Unknown error")
-      );
+    } catch (err: any) {
+      console.error("Save error:", err);
+      
+      // Check for specific database errors
+      if (err?.code === '23505') {
+        if (err?.message?.includes('access_code')) {
+          setError("Access Code already exists. Please use a different unique code.");
+        } else if (err?.message?.includes('class_number')) {
+          setError("Class Number already exists. Each class leader must have a unique class number.");
+        } else {
+          setError("Duplicate entry detected. Please check your input values.");
+        }
+      } else {
+        setError(
+          "Failed to save leader: " +
+            (err instanceof Error ? err.message : "Unknown error")
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -626,12 +736,151 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
         {classLeadersOpen && (
           <>
 
+        {/* Member Search Section (for new and editing leaders) */}
+        {editingId !== null && !selectedMemberForLeader && (
+          <div className="mb-6 p-6 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 rounded-2xl border border-emerald-500/30 shadow-inner">
+            <h3 className="font-bold text-lg text-white mb-4">
+              🔍 {editingId === "new" ? "Search Member to Add as Class Leader" : "Search Member to Update Class Leader"}
+            </h3>
+            <p className="text-sm text-slate-300 mb-4">
+              Search by member name, class number, member number, or phone to find and select a member. 
+              {editingId === "new" ? " Their information will be auto-populated." : " This will update the class leader's information with the member's details."}
+            </p>
+            
+            <div className="relative mb-4">
+              <div className="flex items-center gap-2">
+                <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={(e) => {
+                    setMemberSearchQuery(e.target.value);
+                    searchMembers(e.target.value);
+                  }}
+                  placeholder="Search by name, class number, member number, or phone..."
+                  className="w-full pl-12 pr-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
+                  autoFocus
+                />
+              </div>
+
+              {/* Search Results Dropdown */}
+              {memberSearchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-emerald-500/30 rounded-xl shadow-lg z-10 max-h-64 overflow-y-auto">
+                  {memberSearchResults.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => selectMemberForLeader(member)}
+                      className="w-full px-4 py-3 text-left hover:bg-emerald-500/20 border-b border-slate-700/50 last:border-b-0 transition-colors"
+                    >
+                      <p className="font-semibold text-white">{member.name}</p>
+                      <p className="text-sm text-slate-400">
+                        Class: {member.class_number || "N/A"} • Phone: {member.phone || "N/A"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {memberSearchQuery && memberSearchResults.length === 0 && !searchLoading && (
+                <div className="mt-2 p-3 bg-slate-800 border border-slate-700 rounded-xl text-center text-sm text-slate-400">
+                  No members found matching "{memberSearchQuery}"
+                </div>
+              )}
+
+              {searchLoading && (
+                <div className="mt-2 p-3 bg-slate-800 border border-slate-700 rounded-xl text-center text-sm text-slate-300">
+                  Searching...
+                </div>
+              )}
+            </div>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setSelectedMemberForLeader(null);
+                }}
+                className="text-sm text-slate-400 hover:text-slate-300 underline"
+              >
+                {editingId === "new" ? "Cancel or add manually" : "Cancel or edit manually"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Selected Member Info */}
+        {editingId !== null && selectedMemberForLeader && (
+          <div className="mb-6 p-6 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-2xl border border-emerald-500/50 shadow-inner">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-white">✅ Member Selected</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMemberForLeader(null);
+                  setMemberSearchQuery("");
+                  // Restore original data if editing, clear if new
+                  if (originalLeaderData) {
+                    setFormData(originalLeaderData);
+                  } else {
+                    setFormData({
+                      username: "",
+                      fullName: "",
+                      classNumber: "",
+                      email: "",
+                      active: true,
+                    });
+                  }
+                }}
+                className="p-2 hover:bg-red-500/20 text-red-300 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-slate-400">Name</p>
+                <p className="text-white font-semibold">{selectedMemberForLeader.name}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Class</p>
+                <p className="text-white font-semibold">{selectedMemberForLeader.class_number || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Phone</p>
+                <p className="text-white font-semibold">{selectedMemberForLeader.phone || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Address</p>
+                <p className="text-white font-semibold">{selectedMemberForLeader.address || "N/A"}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add/Edit Form */}
         {editingId !== null && (
           <div className="mb-6 p-6 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl border border-blue-500/30 shadow-inner">
-            <h3 className="font-bold text-lg text-white mb-5">
+            <h3 className="font-bold text-lg text-white mb-4">
               {editingId === "new" ? "➕ Add New Class Leader" : "✏️ Edit Class Leader"}
             </h3>
+            
+            {/* Form Validation Error */}
+            {error && editingId !== null && (
+              <div className="mb-4 p-3 bg-red-900/30 border border-red-700/40 rounded-xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5" />
+                <p className="text-red-200 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Info: Existing Member Login */}
+            {selectedMemberForLeader && (
+              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700/40 rounded-xl text-sm text-blue-200">
+                ℹ️ <strong>{selectedMemberForLeader.name}</strong> will use their existing member login credentials. 
+                {editingId === "new" ? " Password can be changed on first login." : " Email will be updated to the new format."}
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-bold text-slate-300 mb-2">
@@ -649,17 +898,23 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-300 mb-2">
-                  Password
+                  Password {!selectedMemberForLeader && <span className="text-red-400">*</span>}
                 </label>
-                <input
-                  type="password"
-                  value={formData.password || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
-                  placeholder="Enter password"
-                />
+                {selectedMemberForLeader ? (
+                  <div className="w-full px-4 py-3 border border-slate-700 rounded-xl bg-slate-900/40 text-slate-400 flex items-center">
+                    <span className="text-sm">🔒 Auto-generated (member uses existing login)</span>
+                  </div>
+                ) : (
+                  <input
+                    type="password"
+                    value={formData.password || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
+                    placeholder="Enter password (required)"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-300 mb-2">
@@ -677,7 +932,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-300 mb-2">
-                  Access Code
+                  Access Code (Optional)
                 </label>
                 <input
                   type="text"
@@ -686,8 +941,11 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
                     setFormData({ ...formData, accessCode: e.target.value })
                   }
                   className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
-                  placeholder="e.g., class1, class2"
+                  placeholder="Leave blank to auto-generate"
                 />
+                <p className="mt-1 text-xs text-slate-400">
+                  Auto-generates unique code if left blank.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-300 mb-2">
@@ -717,8 +975,11 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
                     setFormData({ ...formData, email: e.target.value })
                   }
                   className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white"
-                  placeholder="Enter email"
+                  placeholder="Leave blank to auto-generate"
                 />
+                <p className="mt-1 text-xs text-slate-400">
+                  Auto-generates to <span className="font-semibold text-slate-300">{`{username}@gmct.member`}</span> when left empty.
+                </p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -733,6 +994,9 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
                 onClick={() => {
                   setEditingId(null);
                   setFormData({});
+                  setSelectedMemberForLeader(null);
+                  setMemberSearchQuery("");
+                  setOriginalLeaderData(null);
                 }}
                 className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold transition-all border border-white/20"
               >

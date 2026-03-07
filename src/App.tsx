@@ -1,7 +1,9 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import Login from './components/Login';
+import ChangePassword from './components/ChangePassword';
 import { getMemberAttendanceForDateAndService } from './supabase';
-import { ClassSession } from './types';
+import { ClassSession, Member } from './types';
+import { authService } from './services/authService';
 
 // Lazy load components for code splitting & performance
 const AttendanceMarking = lazy(() => import('./components/AttendanceMarking'));
@@ -15,6 +17,8 @@ const AttendanceRecords = lazy(() => import('./components/AttendanceRecords'));
 const RecentAttendanceView = lazy(() => import('./components/RecentAttendanceView'));
 const SyncManager = lazy(() => import('./components/SyncManager'));
 const WelcomeScreen = lazy(() => import('./components/WelcomeScreen'));
+const MemberManagement = lazy(() => import('./components/MemberManagement'));
+const MemberDashboard = lazy(() => import('./components/MemberDashboard'));
 
 // Loading fallback component
 const ComponentLoader = () => (
@@ -28,19 +32,33 @@ const ComponentLoader = () => (
 
 function App() {
   const [session, setSession] = useState<ClassSession | null>(null);
+  const [memberSession, setMemberSession] = useState<Member | null>(null);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminView, setAdminView] = useState<'attendance' | 'recent-attendance' | 'settings' | 'class'>('attendance');
+  const [adminView, setAdminView] = useState<'attendance' | 'recent-attendance' | 'settings' | 'class' | 'members'>('attendance');
   const [classView, setClassView] = useState<'welcome' | 'attendance' | 'recent-attendance' | 'reports' | 'records' | 'settings' | 'edit'>('attendance');
   const [adminSelectedClass, setAdminSelectedClass] = useState<number | null>(null);
   const [adminClassView, setAdminClassView] = useState<'attendance' | 'reports'>('attendance');
   const [editRecordDate, setEditRecordDate] = useState<string | null>(null);
   const [editRecordServiceType, setEditRecordServiceType] = useState<string>('sunday');
   const [editRecordMemberStatuses, setEditRecordMemberStatuses] = useState<Array<{ member_id: string; member_name: string; status: string }>>([]);
-  const adminTabIndex = adminView === 'attendance' ? 0 : adminView === 'recent-attendance' ? 1 : adminView === 'class' ? 2 : 3;
+  const adminTabIndex = adminView === 'attendance' ? 0 : adminView === 'recent-attendance' ? 1 : adminView === 'class' ? 2 : adminView === 'members' ? 3 : 4;
   const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : classView === 'settings' ? 4 : -1;
 
   useEffect(() => {
     const savedSession = localStorage.getItem('classSession');
+    const savedMemberSession = localStorage.getItem('memberSession');
+
+    if (savedMemberSession) {
+      try {
+        const parsedMember = JSON.parse(savedMemberSession);
+        setMemberSession(parsedMember);
+      } catch (error) {
+        console.error('Error loading member session:', error);
+        localStorage.removeItem('memberSession');
+      }
+    }
+
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
@@ -81,23 +99,68 @@ function App() {
     localStorage.setItem('classSession', JSON.stringify(newSession));
   };
 
+  const handleMemberLogin = (memberInfo: Member, isFirstLogin: boolean) => {
+    if (isFirstLogin) {
+      setShowPasswordChange(true);
+      setMemberSession(memberInfo);
+    } else {
+      setMemberSession(memberInfo);
+      setShowPasswordChange(false);
+      localStorage.setItem('memberSession', JSON.stringify(memberInfo));
+    }
+  };
+
+  const handlePasswordChanged = () => {
+    setShowPasswordChange(false);
+    if (memberSession) {
+      localStorage.setItem('memberSession', JSON.stringify(memberSession));
+    }
+  };
+
+  const handleMemberUpdated = (updatedMember: Member) => {
+    setMemberSession(updatedMember);
+    localStorage.setItem('memberSession', JSON.stringify(updatedMember));
+  };
+
   const handleLogout = () => {
+    void authService.signOut();
     setSession(null);
+    setMemberSession(null);
+    setShowPasswordChange(false);
     setIsAdmin(false);
     setAdminView('attendance');
     setClassView('attendance');
     setAdminSelectedClass(null);
     setAdminClassView('attendance');
     localStorage.removeItem('classSession');
+    localStorage.removeItem('memberSession');
     localStorage.removeItem('classLeaderId');
     localStorage.removeItem('classLeaderName');
   };
 
   return (
     <>
-      {session ? (
+      {showPasswordChange ? (
+        <Suspense fallback={<ComponentLoader />}>
+          <ChangePassword 
+            onPasswordChanged={handlePasswordChanged}
+            onCancel={() => {
+              setShowPasswordChange(false);
+              handleLogout();
+            }}
+          />
+        </Suspense>
+      ) : session || memberSession ? (
         <>
-          {isAdmin ? (
+          {memberSession ? (
+            <Suspense fallback={<ComponentLoader />}>
+              <MemberDashboard
+                member={memberSession}
+                onLogout={handleLogout}
+                onMemberUpdated={handleMemberUpdated}
+              />
+            </Suspense>
+          ) : isAdmin ? (
             <div className="flex flex-col h-screen">
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
@@ -139,6 +202,10 @@ function App() {
                   <Suspense fallback={<ComponentLoader />}>
                     <AdminSettings onBack={() => setAdminView('attendance')} />
                   </Suspense>
+                ) : adminView === 'members' ? (
+                  <Suspense fallback={<ComponentLoader />}>
+                    <MemberManagement onBack={() => setAdminView('attendance')} />
+                  </Suspense>
                 ) : adminSelectedClass === null ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <AdminClassSelector
@@ -175,10 +242,10 @@ function App() {
                   <div className="pointer-events-none absolute inset-1.5">
                     <div
                       className="h-11 rounded-xl border border-blue-500/30 bg-gradient-to-r from-blue-500/20 via-cyan-500/10 to-blue-500/20 shadow-[0_0_20px_rgba(56,189,248,0.2)] transition-transform duration-300"
-                      style={{ width: 'calc(100% / 4)', transform: `translateX(${adminTabIndex * 100}%)` }}
+                      style={{ width: 'calc(100% / 5)', transform: `translateX(${adminTabIndex * 100}%)` }}
                     />
                   </div>
-                  <div className="relative z-10 grid grid-cols-4 gap-0.5 h-14 px-1">
+                  <div className="relative z-10 grid grid-cols-5 gap-0.5 h-14 px-1">
                   <button 
                     onClick={() => setAdminView('attendance')} 
                     className={`group flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all duration-200 ${
@@ -237,6 +304,25 @@ function App() {
                     <span className="text-[10px] font-bold">Classes</span>
                   </button>
                   <button 
+                    onClick={() => setAdminView('members')} 
+                    className={`group flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all duration-200 ${
+                      adminView === 'members' 
+                        ? 'text-white' 
+                        : 'text-slate-400 active:text-slate-200'
+                    }`}
+                  >
+                    <span className={`grid h-7 w-7 place-items-center rounded-lg border transition-transform duration-200 active:scale-95 ${
+                      adminView === 'members'
+                        ? 'scale-110 bg-blue-500/20 border-blue-500/60 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
+                        : 'bg-slate-800/50 border-slate-700/60'
+                    }`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    </span>
+                    <span className="text-[10px] font-bold">Members</span>
+                  </button>
+                  <button 
                     onClick={() => setAdminView('settings')} 
                     className={`group flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all duration-200 ${
                       adminView === 'settings' 
@@ -278,7 +364,7 @@ function App() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-white/20 border border-white/25">
-                      Class {session.classNumber}
+                        Class {session!.classNumber}
                     </span>
                     <button
                       onClick={handleLogout}
@@ -295,7 +381,7 @@ function App() {
                 {classView === 'welcome' ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <WelcomeScreen
-                      classNumber={session.classNumber}
+                      classNumber={session!.classNumber}
                       classLeaderName={localStorage.getItem('classLeaderName')}
                       onMarkAttendance={() => setClassView('attendance')}
                       onEditAttendance={() => setClassView('records')}
@@ -305,7 +391,7 @@ function App() {
                 ) : classView === 'edit' ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <EditAttendanceMarking
-                      classNumber={session.classNumber}
+                      classNumber={session!.classNumber}
                       date={editRecordDate || ''}
                       serviceType={editRecordServiceType as 'sunday' | 'bible-study'}
                       initialMemberStatuses={editRecordMemberStatuses}
@@ -321,7 +407,7 @@ function App() {
                   <Suspense fallback={<ComponentLoader />}>
                     <>
                       <AttendanceMarking
-                        classNumber={session.classNumber}
+                        classNumber={session!.classNumber}
                         isAdminView={false}
                       />
                       <SyncManager />
@@ -329,17 +415,17 @@ function App() {
                   </Suspense>
                 ) : classView === 'recent-attendance' ? (
                   <Suspense fallback={<ComponentLoader />}>
-                    <RecentAttendanceView classNumber={session.classNumber} />
+                    <RecentAttendanceView classNumber={session!.classNumber} />
                   </Suspense>
                 ) : classView === 'records' ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <AttendanceRecords
-                      classNumber={session.classNumber}
+                      classNumber={session!.classNumber}
                       onEditRecord={async (date, serviceType) => {
                         console.log('📋 Edit record clicked:', { date, serviceType });
                         // Load the member attendance records
                         const memberStatuses = await getMemberAttendanceForDateAndService(
-                          session.classNumber,
+                          session!.classNumber,
                           date,
                           serviceType as 'sunday' | 'bible-study'
                         );
@@ -356,14 +442,14 @@ function App() {
                 ) : classView === 'reports' ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <ClassReports
-                      classNumber={session.classNumber}
+                      classNumber={session!.classNumber}
                       onBack={() => setClassView('attendance')}
                     />
                   </Suspense>
                 ) : (
                   <Suspense fallback={<ComponentLoader />}>
                     <ClassLeaderProfile
-                      classNumber={session.classNumber}
+                      classNumber={session!.classNumber}
                     />
                   </Suspense>
                 )}
@@ -484,7 +570,7 @@ function App() {
           )}
         </>
       ) : (
-        <Login onLogin={handleLogin} />
+        <Login onLogin={handleLogin} onMemberLogin={handleMemberLogin} />
       )}
     </>
   );

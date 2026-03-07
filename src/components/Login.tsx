@@ -1,43 +1,18 @@
-import { useState, useEffect } from 'react';
-import { getAppSettings, supabase } from '../supabase';
+import { useState } from 'react';
+import { getAppSettings } from '../supabase';
+import { authService } from '../services/authService';
+import { Member } from '../types';
 
 interface LoginProps {
   onLogin: (classNumber: number, accessCode: string) => void;
+  onMemberLogin?: (memberInfo: Member, isFirstLogin: boolean) => void;
 }
 
-export default function Login({ onLogin }: LoginProps) {
-  const [className, setClassName] = useState('');
+export default function Login({ onLogin, onMemberLogin }: LoginProps) {
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [maxClasses, setMaxClasses] = useState<number | null>(null);
-  const [loadingClasses, setLoadingClasses] = useState(true);
-
-  useEffect(() => {
-    loadMaxClasses();
-    const savedClass = localStorage.getItem('lastClassSelection');
-    if (savedClass) {
-      setClassName(savedClass);
-    }
-  }, []);
-  const handleClassChange = (value: string) => {
-    setClassName(value);
-    localStorage.setItem('lastClassSelection', value);
-  };
-
-
-  const loadMaxClasses = async () => {
-    try {
-      const settings = await getAppSettings();
-      const max = typeof settings?.max_classes === 'number' ? settings.max_classes : 10;
-      setMaxClasses(max);
-    } catch (err) {
-      console.error('Error loading classes:', err);
-      setMaxClasses(10);
-    } finally {
-      setLoadingClasses(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,51 +20,45 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      const settings = await getAppSettings();
-      const dbAdminCode = settings?.admin_password;
-      const envAdminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
-      
-      const adminCode = dbAdminCode || envAdminCode;
-      
-      // Check for admin access
-      if (password.trim().toLowerCase() === adminCode.toLowerCase() && className === 'admin') {
-        onLogin(-1, password.trim());
+      const normalizedLoginId = loginId.trim();
+      if (!normalizedLoginId || !password) {
+        setError('Please enter your class number and password');
         return;
       }
 
-      // Validate class leader credentials
-      if (!className || !password) {
-        setError('Please select a class and enter your password');
-        setLoading(false);
+      // Keep admin access on the same sign-in form.
+      if (normalizedLoginId.toLowerCase() === 'admin') {
+        const settings = await getAppSettings();
+        const dbAdminCode = settings?.admin_password;
+        const envAdminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
+        const adminCode = dbAdminCode || envAdminCode;
+
+        if (password.trim().toLowerCase() === adminCode.toLowerCase()) {
+          onLogin(-1, password.trim());
+        } else {
+          setError('Invalid admin password. Please try again.');
+        }
         return;
       }
 
-      const classNum = parseInt(className);
-      
-      // Check class_leaders table for matching class and password
-      const { data: leaders, error: dbError } = await supabase
-        .from('class_leaders')
-        .select('*')
-        .eq('class_number', classNum)
-        .eq('password', password.trim())
-        .eq('active', true)
-        .limit(1);
+      const { data, error: authError } = await authService.signIn(
+        normalizedLoginId,
+        password
+      );
 
-      if (dbError) {
-        console.error('Database error:', dbError);
-        setError('Connection error. Please try again.');
-        setLoading(false);
+      if (authError) {
+        setError(authService.parseError(authError));
         return;
       }
 
-      if (leaders && leaders.length > 0) {
-        const leader = leaders[0];
-        onLogin(classNum, password.trim());
-        // Store leader info for profile access
-        localStorage.setItem('classLeaderId', leader.id);
-        localStorage.setItem('classLeaderName', leader.full_name || '');
-      } else {
-        setError('Invalid class number or password. Please try again.');
+      if (data && onMemberLogin) {
+        const memberInfo = await authService.getCurrentMemberInfo();
+        if (!memberInfo) {
+          setError('Member profile not found. Please contact admin.');
+          return;
+        }
+        const isFirstLogin = await authService.isFirstLogin();
+        onMemberLogin(memberInfo, isFirstLogin);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -124,26 +93,26 @@ export default function Login({ onLogin }: LoginProps) {
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label htmlFor="className" className="block text-base font-semibold text-slate-200 mb-2">
-                  User / Class
+                <label htmlFor="loginId" className="block text-base font-semibold text-slate-200 mb-2">
+                  Class Number
                 </label>
-                <select
-                  id="className"
-                  value={className}
-                  onChange={(e) => handleClassChange(e.target.value)}
+                <input
+                  id="loginId"
+                  type="text"
+                  value={loginId}
+                  onChange={(e) => {
+                    setLoginId(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="e.g., A123"
                   className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:border-transparent text-base bg-slate-900/70 text-white"
-                  disabled={loadingClasses}
                   required
                   autoFocus
-                >
-                  <option value="">Select a class or admin</option>
-                  <option value="admin">Admin</option>
-                  {maxClasses && Array.from({ length: maxClasses }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      Class {i + 1}
-                    </option>
-                  ))}
-                </select>
+                  autoComplete="off"
+                />
+                <p className="mt-2 text-xs text-slate-400">
+                  Members and class leaders use the same sign-in. Admin can sign in with ID <span className="font-semibold text-slate-300">admin</span>.
+                </p>
               </div>
 
               <div>
@@ -170,7 +139,7 @@ export default function Login({ onLogin }: LoginProps) {
 
               <button
                 type="submit"
-                disabled={loading || !className || !password || loadingClasses}
+                disabled={loading || !loginId.trim() || !password}
                 className="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-emerald-500 text-white py-3 px-4 rounded-xl font-semibold text-lg hover:from-cyan-400 hover:via-blue-500 hover:to-emerald-400 focus:outline-none focus:ring-4 focus:ring-cyan-300/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
               >
                 {loading ? (

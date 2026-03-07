@@ -7,11 +7,6 @@ interface ClassLeaderProfileProps {
   classNumber: number;
 }
 
-interface AttendanceDateRow {
-  attendance_date: string;
-  service_type: "bible-study" | "sunday";
-}
-
 export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
   classNumber,
 }) => {
@@ -179,13 +174,16 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
         return;
       }
 
-      const rows = (data || []) as AttendanceDateRow[];
+      const attendanceRows = (data || []) as Array<{
+        attendance_date: string;
+        service_type: string;
+      }>;
 
-      if (rows.length > 0) {
+      if (attendanceRows.length > 0) {
         // Extract available years and sort descending (newest first)
-        const allYears = [...new Set(
-          rows.map(r => r.attendance_date.split("-")[0])
-        )].sort().reverse();
+        const allYears = [...new Set(attendanceRows.map((r) => r.attendance_date.split("-")[0]))]
+          .sort()
+          .reverse();
         setRecentAvailableYears(allYears);
 
         // Set initial year to the latest year if not already set
@@ -195,29 +193,29 @@ export const ClassLeaderProfile: React.FC<ClassLeaderProfileProps> = ({
         }
 
         // Filter by service type
-        let filteredByService: AttendanceDateRow[] = [];
+        let filteredByService: Array<{ attendance_date: string; service_type: string }> = [];
         switch (recentAttendanceFilter) {
           case "bible-study":
-            filteredByService = rows.filter(r => r.service_type === "bible-study");
+            filteredByService = attendanceRows.filter((r) => r.service_type === "bible-study");
             break;
           case "sunday":
-            filteredByService = rows.filter(r => r.service_type === "sunday");
+            filteredByService = attendanceRows.filter((r) => r.service_type === "sunday");
             break;
           case "total":
-            filteredByService = rows;
+            filteredByService = attendanceRows;
             break;
         }
 
         // Filter by selected year
         let filteredByYear = filteredByService;
         if (recentSelectedYear) {
-          filteredByYear = filteredByService.filter(r => 
+          filteredByYear = filteredByService.filter((r) =>
             r.attendance_date.startsWith(recentSelectedYear)
           );
         }
 
         // Extract unique dates
-        const filteredDates = [...new Set(filteredByYear.map(r => r.attendance_date))];
+        const filteredDates = [...new Set(filteredByYear.map((r) => r.attendance_date))];
 
         setRecentAttendanceDates(filteredDates);
         if (filteredDates.length > 0 && !recentDate) {
