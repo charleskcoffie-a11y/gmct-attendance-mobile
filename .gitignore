@@ -26,3 +26,6 @@ dist-ssr
 dev-dist
 public/sw.js
 public/workbox-*.js
+
+# Local Netlify folder
+.netlify
