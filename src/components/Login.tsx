@@ -115,7 +115,7 @@ export default function Login({ onLogin }: LoginProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-white mb-2 font-['Cinzel'] tracking-wide">GMCT Attendance</h1>
+              <h1 className="text-3xl font-bold text-white mb-2 font-['Cinzel'] tracking-wide">GMCT Connect</h1>
               <p className="text-slate-300">Welcome back — sign in to continue</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200">
                 Secure access • Offline ready

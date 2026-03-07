@@ -1,4 +1,4 @@
-# 🚀 GMCT Attendance Mobile - Setup Instructions
+# 🚀 GMCT Connect - Setup Instructions
 
 ## Quick Start
 

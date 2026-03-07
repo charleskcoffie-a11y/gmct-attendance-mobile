@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to configure environment variables for the GMCT Attendance Mobile App and deploy safely to Netlify while keeping credentials secure.
+This guide explains how to configure environment variables for the GMCT Connect app and deploy safely to Netlify while keeping credentials secure.
 
 ## Local Development Setup
 

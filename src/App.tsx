@@ -103,7 +103,7 @@ function App() {
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
                 <div className="flex items-center justify-between px-4 py-4">
                   <div>
-                    <h1 className="text-xl font-bold">GMCT Attendance</h1>
+                    <h1 className="text-xl font-bold">GMCT Connect</h1>
                     <p className="text-xs text-blue-100">Admin Dashboard</p>
                   </div>
                   <button onClick={handleLogout} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition text-sm backdrop-blur-sm">
@@ -272,7 +272,7 @@ function App() {
                       <span className="text-base font-black">GM</span>
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg font-black tracking-tight">GMCT Attendance</h1>
+                      <h1 className="text-lg font-black tracking-tight">GMCT Connect</h1>
                       <p className="text-xs font-bold text-blue-100">Class Leader</p>
                     </div>
                   </div>
