@@ -351,6 +351,7 @@ export class AuthService {
   private async resolveClassLeaderMapping(authEmail: string): Promise<ClassLeaderMapping> {
     const normalizedEmail = this.normalizeIdentifier(authEmail);
     if (!normalizedEmail) return {};
+    const emailLocalPart = normalizedEmail.split('@')[0] || '';
 
     let leader: any | null = null;
 
@@ -363,6 +364,33 @@ export class AuthService {
 
     if (!emailError && emailMatches && emailMatches.length > 0) {
       leader = emailMatches[0];
+    }
+
+    // Fallback for leader accounts configured with username but missing email.
+    if (!leader && emailLocalPart) {
+      const { data: usernameMatches, error: usernameError } = await supabase
+        .from('class_leaders')
+        .select('id, class_number, full_name, username, email, active')
+        .eq('active', true)
+        .ilike('username', emailLocalPart)
+        .limit(1);
+
+      if (!usernameError && usernameMatches && usernameMatches.length > 0) {
+        leader = usernameMatches[0];
+      }
+    }
+
+    if (!leader && emailLocalPart) {
+      const { data: classNumberMatches, error: classNumberError } = await supabase
+        .from('class_leaders')
+        .select('id, class_number, full_name, username, email, active')
+        .eq('active', true)
+        .ilike('class_number', emailLocalPart)
+        .limit(1);
+
+      if (!classNumberError && classNumberMatches && classNumberMatches.length > 0) {
+        leader = classNumberMatches[0];
+      }
     }
 
     if (!leader) {

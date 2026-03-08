@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS member_attendance (
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   class_number TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'sick', 'travel')),
+  absence_reason TEXT CHECK (absence_reason IN ('S', 'D', 'B')),
   created_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(attendance_id, member_id)
 );

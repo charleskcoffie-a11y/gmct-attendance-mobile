@@ -6,8 +6,10 @@ interface MemberAttendanceRowProps {
   name: string;
   phone?: string;
   phoneNumber?: string;
-  attendanceStatus?: "present" | "absent" | "sick" | "travel";
-  onStatusChange: (memberId: string, status: "present" | "absent" | "sick" | "travel") => void;
+  attendanceStatus?: "present" | "absent";
+  absenceReason?: "S" | "D" | "B" | "";
+  onStatusChange: (memberId: string, status: "present" | "absent") => void;
+  onAbsenceReasonChange: (memberId: string, reason: "S" | "D" | "B" | "") => void;
   onEdit: () => void;
   onDelete?: () => void;
   showDeleteButton?: boolean;
@@ -22,11 +24,15 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
   phone,
   phoneNumber,
   attendanceStatus,
+  absenceReason,
   onStatusChange,
+  onAbsenceReasonChange,
   onEdit,
   onDelete,
   showDeleteButton = false,
 }) => {
+  const isAbsent = normalizeStatus(attendanceStatus) !== "present";
+
   return (
     <div
       key={id}
@@ -57,7 +63,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onStatusChange(id, "present")}
           className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
@@ -78,27 +84,23 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
         >
           {normalizeStatus(attendanceStatus) === "absent" ? "✗" : "Absent"}
         </button>
-        <button
-          onClick={() => onStatusChange(id, "sick")}
-          className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-            normalizeStatus(attendanceStatus) === "sick"
-              ? "bg-orange-600 text-white border-orange-500"
-              : "bg-slate-700 text-slate-300 hover:bg-orange-600/30 hover:text-orange-300 border border-slate-600"
-          }`}
-        >
-          {normalizeStatus(attendanceStatus) === "sick" ? "🤒" : "Sick"}
-        </button>
-        <button
-          onClick={() => onStatusChange(id, "travel")}
-          className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
-            normalizeStatus(attendanceStatus) === "travel"
-              ? "bg-purple-600 text-white border-purple-500"
-              : "bg-slate-700 text-slate-300 hover:bg-purple-600/30 hover:text-purple-300 border border-slate-600"
-          }`}
-        >
-          {normalizeStatus(attendanceStatus) === "travel" ? "✈️" : "Travel"}
-        </button>
       </div>
+
+      {isAbsent && (
+        <div className="mt-2">
+          <label className="block text-xs text-slate-300 mb-1">Absent Reason</label>
+          <select
+            value={absenceReason || ""}
+            onChange={(e) => onAbsenceReasonChange(id, e.target.value as "S" | "D" | "B" | "")}
+            className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select reason</option>
+            <option value="S">S - Sickness</option>
+            <option value="D">D - Through Distance</option>
+            <option value="B">B - Pressure of Business</option>
+          </select>
+        </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
@@ -109,6 +111,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
     prevProps.phone === nextProps.phone &&
     prevProps.phoneNumber === nextProps.phoneNumber &&
     prevProps.attendanceStatus === nextProps.attendanceStatus &&
+    prevProps.absenceReason === nextProps.absenceReason &&
     prevProps.showDeleteButton === nextProps.showDeleteButton
   );
 });

@@ -230,7 +230,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       username: username,
       fullName: member.name || "",
       classNumber: member.class_number || "",
-      email: `${username}@gmct.member`,  // Force new email format
+      email: member.email || `${(member.class_number || username).toString().trim().toLowerCase()}@gmct.member`,
       phone: member.phone || "",
       password: tempPassword,  // Auto-generated, not visible to member
       accessCode: "",
@@ -278,8 +278,9 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
 
     const normalizedUsername = formData.username.trim();
     const normalizedFullName = formData.fullName.trim();
+    const normalizedClassNumber = (formData.classNumber || "").toString().trim().toLowerCase();
     const normalizedEmail = (
-      formData.email?.trim() || `${normalizedUsername.toLowerCase()}@gmct.member`
+      formData.email?.trim() || `${normalizedClassNumber || normalizedUsername.toLowerCase()}@gmct.member`
     ).toLowerCase();
     
     // Auto-generate access code if empty (must be unique and not null)
