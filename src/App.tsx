@@ -46,6 +46,18 @@ function App() {
   const classTabIndex = classView === 'attendance' ? 0 : classView === 'recent-attendance' ? 1 : classView === 'records' ? 2 : classView === 'reports' ? 3 : classView === 'settings' ? 4 : -1;
 
   useEffect(() => {
+    const refreshMemberSession = async () => {
+      try {
+        const refreshedMember = await authService.getCurrentMemberInfo();
+        if (refreshedMember) {
+          setMemberSession(refreshedMember);
+          localStorage.setItem('memberSession', JSON.stringify(refreshedMember));
+        }
+      } catch (error) {
+        console.error('Error refreshing member session:', error);
+      }
+    };
+
     const savedSession = localStorage.getItem('classSession');
     const savedMemberSession = localStorage.getItem('memberSession');
 
@@ -53,6 +65,7 @@ function App() {
       try {
         const parsedMember = JSON.parse(savedMemberSession);
         setMemberSession(parsedMember);
+        void refreshMemberSession();
       } catch (error) {
         console.error('Error loading member session:', error);
         localStorage.removeItem('memberSession');

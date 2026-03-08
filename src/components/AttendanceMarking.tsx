@@ -15,7 +15,8 @@ interface AttendanceMarkingProps {
 }
 
 interface MemberWithStatus extends Member {
-  attendanceStatus?: "present" | "absent" | "sick" | "travel";
+  attendanceStatus?: "present" | "absent";
+  absenceReason?: "S" | "D" | "B" | "";
 }
 
 interface MemberFormData {
@@ -56,7 +57,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const normalizeStatus = (value?: string) =>
     (value || "").toString().trim().toLowerCase();
 
-  const [serviceType, setServiceType] = useState<ServiceType>("sunday");
+  const normalizeAbsenceReason = (value?: string): "S" | "D" | "B" | "" => {
+    const normalized = (value || "").toString().trim().toUpperCase();
+    return normalized === "S" || normalized === "D" || normalized === "B" ? normalized : "";
+  };
+
+  const [serviceType, setServiceType] = useState<ServiceType>("bible-study");
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
@@ -172,7 +178,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       status: s.status 
     })));
 
-    const updatedMembers = members.map((member) => {
+    const updatedMembers: MemberWithStatus[] = members.map((member) => {
       const existingStatus = initialMemberStatuses.find(
         (s) => {
           const idMatch = String(s.member_id) === String(member.id);
@@ -196,7 +202,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       
         return {
           ...member,
-          attendanceStatus: (normalizeStatus(existingStatus?.status) || "absent") as any,
+          attendanceStatus: normalizeStatus(existingStatus?.status) === "present" ? ("present" as const) : ("absent" as const),
+          absenceReason:
+            normalizeStatus(existingStatus?.status) === "sick"
+              ? "S"
+              : normalizeStatus(existingStatus?.status) === "travel"
+              ? "D"
+              : normalizeAbsenceReason((existingStatus as any)?.absence_reason),
         };
     });
     
@@ -244,6 +256,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       const membersWithStatus: MemberWithStatus[] = (loadedMembers as Member[]).map((m) => ({
         ...m,
         attendanceStatus: "absent" as const,
+        absenceReason: "",
       }));
       console.log('📝 Members with status initialized:', membersWithStatus.map(m => ({ id: m.id, name: m.name })));
       setMembers(membersWithStatus);
@@ -320,7 +333,22 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     setMembers(
       members.map((m) =>
         m.id === memberId
-          ? { ...m, attendanceStatus: status as any }
+          ? {
+              ...m,
+              attendanceStatus: status as any,
+              absenceReason: status === "present" ? "" : m.absenceReason || "",
+            }
+          : m
+      )
+    );
+    setSelectionChanged(true);
+  };
+
+  const updateMemberAbsenceReason = (memberId: string, reason: "S" | "D" | "B" | "") => {
+    setMembers((prevMembers) =>
+      prevMembers.map((m) =>
+        m.id === memberId
+          ? { ...m, attendanceStatus: m.attendanceStatus === "present" ? "absent" : m.attendanceStatus, absenceReason: reason }
           : m
       )
     );
@@ -503,7 +531,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
           return {
             memberId: m.id?.toString() || "",
             memberName: m.name || "",
-            status: normalizedStatus || "absent",
+            status: normalizedStatus === "present" ? "present" : "absent",
+            absenceReason: normalizedStatus === "present" ? "" : normalizeAbsenceReason(m.absenceReason),
           };
         });
 
@@ -546,7 +575,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       // Only reset statuses if NOT in edit mode
       if (!isEditMode) {
         setMembers(
-          members.map((m) => ({ ...m, attendanceStatus: "absent" as const }))
+          members.map((m) => ({ ...m, attendanceStatus: "absent" as const, absenceReason: "" }))
         );
         setSelectionChanged(false);
       } else {
@@ -576,12 +605,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const absentCount = members.filter(
     (m) => normalizeStatus(m.attendanceStatus) === "absent"
   ).length;
-  const sickCount = members.filter(
-    (m) => normalizeStatus(m.attendanceStatus) === "sick"
-  ).length;
-  const travelCount = members.filter(
-    (m) => normalizeStatus(m.attendanceStatus) === "travel"
-  ).length;
+  const absentSCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === "absent" && m.absenceReason === "S").length;
+  const absentDCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === "absent" && m.absenceReason === "D").length;
+  const absentBCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === "absent" && m.absenceReason === "B").length;
 
   // Temporarily disabled strict date validation for testing
   // const selectedDay = selectedDate
@@ -749,13 +775,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 <p className="text-base font-bold text-red-300">{absentCount}</p>
                 <p className="text-xs text-red-300">Absent</p>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-600/20 border border-orange-500/30">
-                <p className="text-base font-bold text-orange-300">{sickCount}</p>
-                <p className="text-xs text-orange-300">Sick</p>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30">
-                <p className="text-base font-bold text-purple-300">{travelCount}</p>
-                <p className="text-xs text-purple-300">Travel</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/30">
+                <p className="text-base font-bold text-amber-300">S:{absentSCount} D:{absentDCount} B:{absentBCount}</p>
+                <p className="text-xs text-amber-300">Absent Reasons</p>
               </div>
             </div>
 
@@ -769,6 +791,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="mb-3 p-3 rounded-xl border border-slate-600 bg-slate-800/60">
+          <p className="text-xs font-semibold text-slate-200 mb-1">Legend</p>
+          <p className="text-xs text-slate-300">D = Absent Through Distance, B = Absent Owing to Pressure of Business, S = Absent Through Sickness</p>
         </div>
 
         {/* Search */}
@@ -1056,7 +1084,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 phone={member.phone}
                 phoneNumber={member.phoneNumber}
                 attendanceStatus={member.attendanceStatus}
+                absenceReason={member.absenceReason}
                 onStatusChange={updateMemberStatus}
+                onAbsenceReasonChange={updateMemberAbsenceReason}
                 onEdit={() => handleEditMember(member)}
                 onDelete={() => handleDeleteMember(member.id!)}
                 showDeleteButton={isAdminView}

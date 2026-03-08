@@ -464,12 +464,18 @@ export async function saveAttendance(
   classNumber: number,
   date: string,
   serviceType: 'sunday' | 'bible-study',
-  memberRecords: Array<{ memberId: string; status: string; memberName?: string }>,
+  memberRecords: Array<{ memberId: string; status: string; memberName?: string; absenceReason?: string }>,
   classLeaderName?: string
 ) {
+  const normalizeAbsenceReason = (value?: string): 'S' | 'D' | 'B' | null => {
+    const normalized = (value || '').toString().trim().toUpperCase();
+    return normalized === 'S' || normalized === 'D' || normalized === 'B' ? normalized : null;
+  };
+
   const normalizedRecords = memberRecords.map((record) => ({
     ...record,
     status: (record.status || '').toString().trim().toLowerCase() || 'absent',
+    absenceReason: normalizeAbsenceReason(record.absenceReason),
   }));
 
   // Calculate summary stats
@@ -510,13 +516,25 @@ export async function saveAttendance(
       member_name: (record.memberName || record.memberId || '').toString().trim(),
       class_number: classNumber.toString(),
       status: record.status,
+      absence_reason: record.status === 'present' ? null : record.absenceReason,
     }));
 
-    const { error: memberError } = await supabase
+    let { error: memberError } = await supabase
       .from('member_attendance')
       .upsert(memberAttendanceRecords, {
         onConflict: 'attendance_id,member_id'
       });
+
+    // Backward compatibility: older databases may not have absence_reason yet.
+    if (memberError && (memberError.message || '').toLowerCase().includes('absence_reason')) {
+      const fallbackRecords = memberAttendanceRecords.map(({ absence_reason, ...rest }) => rest);
+      const { error: fallbackError } = await supabase
+        .from('member_attendance')
+        .upsert(fallbackRecords, {
+          onConflict: 'attendance_id,member_id'
+        });
+      memberError = fallbackError;
+    }
 
     if (memberError) {
       console.error('Error saving member attendance:', memberError);
@@ -576,11 +594,23 @@ export async function getMemberAttendanceForDateAndService(
   }
   
   // Get member_attendance records WITHOUT the join - just the raw attendance data
-  const { data: memberAttendanceData, error: memberError } = await supabase
+  let { data: memberAttendanceData, error: memberError } = await supabase
     .from('member_attendance')
-    .select('member_id, member_name, status')
+    .select('member_id, member_name, status, absence_reason')
     .eq('attendance_id', attendanceRecord.id)
     .order('member_name', { ascending: true });
+
+  // Backward compatibility: older databases may not have absence_reason yet.
+  if (memberError && (memberError.message || '').toLowerCase().includes('absence_reason')) {
+    const fallbackQuery = await supabase
+      .from('member_attendance')
+      .select('member_id, member_name, status')
+      .eq('attendance_id', attendanceRecord.id)
+      .order('member_name', { ascending: true });
+
+    memberAttendanceData = fallbackQuery.data as any;
+    memberError = fallbackQuery.error;
+  }
 
   console.log('👥 Raw member attendance records from DB:', memberAttendanceData);
   
@@ -593,6 +623,7 @@ export async function getMemberAttendanceForDateAndService(
     member_id: record.member_id,
     member_name: (record.member_name || '').trim().replace(/\s+/g, ' '),
     status: (record.status || '').toString().trim().toLowerCase(),
+    absence_reason: (record.absence_reason || '').toString().trim().toUpperCase(),
   }));
   
   console.log('📤 Mapped result:', result);

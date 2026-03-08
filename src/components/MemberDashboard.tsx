@@ -4,7 +4,9 @@ import { Users, ClipboardCheck, FileText, LogOut, ArrowLeft, Coins } from 'lucid
 
 const AttendanceMarking = lazy(() => import('./AttendanceMarking'));
 const AttendanceRecords = lazy(() => import('./AttendanceRecords'));
+const RecentAttendanceView = lazy(() => import('./RecentAttendanceView'));
 const MemberContributions = lazy(() => import('./MemberContributions'));
+const ClassReports = lazy(() => import('./ClassReports'));
 
 interface MemberDashboardProps {
   member: Member;
@@ -12,7 +14,7 @@ interface MemberDashboardProps {
   onMemberUpdated: (member: Member) => void;
 }
 
-type MemberView = 'profile' | 'contributions' | 'attendance' | 'records';
+type MemberView = 'profile' | 'contributions' | 'attendance' | 'records' | 'recent-records' | 'reports';
 
 const ComponentLoader = () => (
   <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
@@ -24,18 +26,24 @@ const ComponentLoader = () => (
 );
 
 export default function MemberDashboard({ member, onLogout, onMemberUpdated }: MemberDashboardProps) {
-  const [view, setView] = useState<MemberView>('contributions');
+  const [view, setView] = useState<MemberView>(() => (
+    typeof member.assignedClass === 'number' && member.assignedClass > 0 ? 'profile' : 'contributions'
+  ));
   const [currentMember, setCurrentMember] = useState<Member>(member);
 
   useEffect(() => {
     setCurrentMember(member);
+    // If role changes to class leader after refresh, surface leader actions immediately.
+    if (typeof member.assignedClass === 'number' && member.assignedClass > 0) {
+      setView((prev) => (prev === 'contributions' ? 'profile' : prev));
+    }
   }, [member]);
 
   const mappedClassNumber = currentMember.assignedClass;
   const isClassLeader = typeof mappedClassNumber === 'number' && mappedClassNumber > 0;
 
   useEffect(() => {
-    if (!isClassLeader && (view === 'attendance' || view === 'records')) {
+    if (!isClassLeader && (view === 'attendance' || view === 'records' || view === 'recent-records' || view === 'reports')) {
       setView('contributions');
     }
   }, [isClassLeader, view]);
@@ -119,6 +127,20 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
                   <FileText className="w-4 h-4" />
                   View Records
                 </button>
+                <button
+                  onClick={() => setView('recent-records')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition"
+                >
+                  <FileText className="w-4 h-4" />
+                  Recent Records
+                </button>
+                <button
+                  onClick={() => setView('reports')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition"
+                >
+                  <FileText className="w-4 h-4" />
+                  Reports
+                </button>
               </div>
             </div>
           ) : (
@@ -188,7 +210,15 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
           </button>
           <div className="text-center">
             <p className="text-sm font-semibold">Class {mappedClassNumber}</p>
-            <p className="text-xs text-blue-100">{view === 'attendance' ? 'Mark Attendance' : 'Attendance Records'}</p>
+            <p className="text-xs text-blue-100">
+              {view === 'attendance'
+                ? 'Mark Attendance'
+                : view === 'records'
+                ? 'Attendance Records'
+                : view === 'recent-records'
+                ? 'Recent Records'
+                : 'Class Reports'}
+            </p>
           </div>
           <button
             onClick={onLogout}
@@ -203,9 +233,17 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
         <Suspense fallback={<ComponentLoader />}>
           <AttendanceMarking classNumber={mappedClassNumber} isAdminView={false} />
         </Suspense>
-      ) : (
+      ) : view === 'records' ? (
         <Suspense fallback={<ComponentLoader />}>
           <AttendanceRecords classNumber={mappedClassNumber} />
+        </Suspense>
+      ) : view === 'recent-records' ? (
+        <Suspense fallback={<ComponentLoader />}>
+          <RecentAttendanceView classNumber={mappedClassNumber} />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<ComponentLoader />}>
+          <ClassReports classNumber={mappedClassNumber} onBack={() => setView('profile')} />
         </Suspense>
       )}
     </div>

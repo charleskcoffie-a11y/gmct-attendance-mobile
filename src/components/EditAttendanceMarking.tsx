@@ -13,11 +13,17 @@ interface EditAttendanceMarkingProps {
 }
 
 interface MemberWithStatus extends Member {
-  attendanceStatus?: "present" | "absent" | "sick" | "travel";
+  attendanceStatus?: "present" | "absent";
+  absenceReason?: "S" | "D" | "B" | "";
 }
 
 const normalizeStatus = (value?: string) =>
   (value || "").toString().trim().toLowerCase();
+
+const normalizeAbsenceReason = (value?: string): "S" | "D" | "B" | "" => {
+  const normalized = (value || "").toString().trim().toUpperCase();
+  return normalized === "S" || normalized === "D" || normalized === "B" ? normalized : "";
+};
 
 export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   classNumber,
@@ -57,7 +63,13 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
         
         return {
           ...member,
-          attendanceStatus: (normalizeStatus(existingStatus?.status) || "absent") as any,
+          attendanceStatus: normalizeStatus(existingStatus?.status) === "present" ? "present" : "absent",
+          absenceReason:
+            normalizeStatus(existingStatus?.status) === "sick"
+              ? "S"
+              : normalizeStatus(existingStatus?.status) === "travel"
+              ? "D"
+              : normalizeAbsenceReason((existingStatus as any)?.absence_reason),
         };
       });
       
@@ -73,7 +85,21 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
     setMembers((prevMembers) =>
       prevMembers.map((m) =>
         m.id === memberId
-          ? { ...m, attendanceStatus: status as any }
+          ? {
+              ...m,
+              attendanceStatus: status as any,
+              absenceReason: status === "present" ? "" : m.absenceReason || "",
+            }
+          : m
+      )
+    );
+  };
+
+  const updateMemberAbsenceReason = (memberId: string, reason: "S" | "D" | "B" | "") => {
+    setMembers((prevMembers) =>
+      prevMembers.map((m) =>
+        m.id === memberId
+          ? { ...m, attendanceStatus: m.attendanceStatus === "present" ? "absent" : m.attendanceStatus, absenceReason: reason }
           : m
       )
     );
@@ -91,7 +117,8 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
         members.map(m => ({
           memberId: m.id!,
           memberName: m.name || '',
-          status: normalizeStatus(m.attendanceStatus) || 'absent'
+          status: normalizeStatus(m.attendanceStatus) === 'present' ? 'present' : 'absent',
+          absenceReason: normalizeStatus(m.attendanceStatus) === 'present' ? '' : normalizeAbsenceReason(m.absenceReason),
         }))
       );
 
@@ -108,8 +135,9 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
 
   const presentCount = members.filter(m => normalizeStatus(m.attendanceStatus) === 'present').length;
   const absentCount = members.filter(m => normalizeStatus(m.attendanceStatus) === 'absent').length;
-  const sickCount = members.filter(m => normalizeStatus(m.attendanceStatus) === 'sick').length;
-  const travelCount = members.filter(m => normalizeStatus(m.attendanceStatus) === 'travel').length;
+  const absentSCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === 'absent' && m.absenceReason === 'S').length;
+  const absentDCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === 'absent' && m.absenceReason === 'D').length;
+  const absentBCount = members.filter((m) => normalizeStatus(m.attendanceStatus) === 'absent' && m.absenceReason === 'B').length;
 
   const normalizedSearch = memberSearch.trim().toLowerCase();
   const filteredMembers = members.filter((m) => {
@@ -176,7 +204,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
       {/* Content */}
       <div className="p-4 max-w-6xl mx-auto pb-32">
         {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-700/20 border border-emerald-500/30 rounded-lg p-2.5">
             <p className="text-emerald-300 text-xs font-medium">Present</p>
             <p className="text-xl font-bold text-emerald-400">{presentCount}</p>
@@ -185,14 +213,14 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
             <p className="text-red-300 text-xs font-medium">Absent</p>
             <p className="text-xl font-bold text-red-400">{absentCount}</p>
           </div>
-          <div className="bg-gradient-to-br from-orange-600/20 to-orange-700/20 border border-orange-500/30 rounded-lg p-2.5">
-            <p className="text-orange-300 text-xs font-medium">Sick</p>
-            <p className="text-xl font-bold text-orange-400">{sickCount}</p>
+          <div className="bg-gradient-to-br from-amber-600/20 to-amber-700/20 border border-amber-500/30 rounded-lg p-2.5">
+            <p className="text-amber-300 text-xs font-medium">Reasons</p>
+            <p className="text-sm font-bold text-amber-400">S:{absentSCount} D:{absentDCount} B:{absentBCount}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-600/20 to-purple-700/20 border border-purple-500/30 rounded-lg p-2.5">
-            <p className="text-purple-300 text-xs font-medium">Travel</p>
-            <p className="text-xl font-bold text-purple-400">{travelCount}</p>
-          </div>
+        </div>
+
+        <div className="mb-6 p-3 rounded-lg border border-slate-600 bg-slate-800/40">
+          <p className="text-xs text-slate-300">Legend: D = Absent Through Distance, B = Absent Owing to Pressure of Business, S = Absent Through Sickness</p>
         </div>
 
         {/* Messages */}
@@ -224,7 +252,9 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
               phone={member.phone}
               phoneNumber={member.phoneNumber}
               attendanceStatus={member.attendanceStatus}
+              absenceReason={member.absenceReason}
               onStatusChange={updateMemberStatus}
+              onAbsenceReasonChange={updateMemberAbsenceReason}
               onEdit={() => {}}
               showDeleteButton={false}
             />
