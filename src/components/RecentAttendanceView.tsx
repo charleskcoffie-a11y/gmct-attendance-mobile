@@ -96,37 +96,6 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     const hue = Math.round((index * 360) / Math.max(total, 1));
     return `hsl(${hue} 78% 56%)`;
   };
-
-
-  // Helper function to get week number from date
-  const getWeekNumber = (dateStr: string): number => {
-    const normalized = normalizeAttendanceDate(dateStr);
-    const [y, m, d] = normalized.split("-").map(Number);
-
-    if (!y || !m || !d) {
-      return 1;
-    }
-
-    const date = new Date(y, m - 1, d);
-    const day = date.getDay();
-    const mondayDiff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(date);
-    monday.setDate(date.getDate() + mondayDiff);
-
-    const jan1 = new Date(monday.getFullYear(), 0, 1);
-    const jan1Day = jan1.getDay();
-    const firstMondayDiff = jan1Day === 0 ? 1 : jan1Day === 1 ? 0 : 8 - jan1Day;
-    const firstMonday = new Date(jan1);
-    firstMonday.setDate(jan1.getDate() + firstMondayDiff);
-
-    if (monday < firstMonday) {
-      return 1;
-    }
-
-    const diffMs = monday.getTime() - firstMonday.getTime();
-    return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
-  };
-
   const toLocalYmd = (dt: Date) => {
     const yyyy = dt.getFullYear();
     const mm = String(dt.getMonth() + 1).padStart(2, "0");
@@ -150,12 +119,13 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     cursor.setDate(monthStart.getDate() + mondayDiff);
 
     const weeks: Week[] = [];
+    let monthWeekIndex = 1;
     while (cursor <= monthEnd) {
       const weekStart = toLocalYmd(cursor);
       const weekEndDate = new Date(cursor);
       weekEndDate.setDate(weekEndDate.getDate() + 6);
       const weekEnd = toLocalYmd(weekEndDate);
-      const weekNumber = getWeekNumber(weekStart);
+      const weekNumber = monthWeekIndex;
       const datesInWeek = normalizedDates.filter((d) => d >= weekStart && d <= weekEnd);
 
       weeks.push({
@@ -167,6 +137,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
       });
 
       cursor.setDate(cursor.getDate() + 7);
+      monthWeekIndex += 1;
     }
 
     return weeks;
