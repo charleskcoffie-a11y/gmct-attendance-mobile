@@ -41,7 +41,8 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
 
   useEffect(() => {
     loadMembers();
-  }, [classNumber]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classNumber, date, serviceType]);
 
   const loadMembers = async () => {
     setLoading(true);

@@ -577,15 +577,35 @@ export async function getMemberAttendanceForDateAndService(
   // Always use plain YYYY-MM-DD to match what Supabase stores
   const normalizedDate = (date || '').slice(0, 10);
 
-  // First get the attendance record
-  const { data: attendanceRecord, error: attendanceError } = await supabase
+  const dayStart = `${normalizedDate}T00:00:00`;
+  const dayEnd = `${normalizedDate}T23:59:59`;
+
+  // Try a day-range lookup first so editing works whether attendance_date is
+  // stored as a date or a timestamp.
+  let { data: attendanceRecord, error: attendanceError } = await supabase
     .from('attendance')
     .select('id')
     .eq('class_number', classNumber.toString())
-    .eq('attendance_date', normalizedDate)
+    .gte('attendance_date', dayStart)
+    .lte('attendance_date', dayEnd)
     .eq('service_type', serviceType)
+    .order('attendance_date', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (!attendanceRecord && !attendanceError) {
+    const exactMatch = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('class_number', classNumber.toString())
+      .eq('attendance_date', normalizedDate)
+      .eq('service_type', serviceType)
+      .limit(1)
+      .maybeSingle();
+
+    attendanceRecord = exactMatch.data;
+    attendanceError = exactMatch.error;
+  }
   
   console.log('📋 Attendance record:', attendanceRecord);
   
@@ -611,6 +631,29 @@ export async function getMemberAttendanceForDateAndService(
 
     memberAttendanceData = fallbackQuery.data as any;
     memberError = fallbackQuery.error;
+  }
+
+  // Older schemas may also be missing member_name.
+  if (memberError && (memberError.message || '').toLowerCase().includes('member_name')) {
+    const fallbackWithoutName = await supabase
+      .from('member_attendance')
+      .select('member_id, status, absence_reason')
+      .eq('attendance_id', attendanceRecord.id)
+      .order('member_id', { ascending: true });
+
+    memberAttendanceData = fallbackWithoutName.data as any;
+    memberError = fallbackWithoutName.error;
+  }
+
+  if (memberError && (memberError.message || '').toLowerCase().includes('absence_reason')) {
+    const fallbackMinimal = await supabase
+      .from('member_attendance')
+      .select('member_id, status')
+      .eq('attendance_id', attendanceRecord.id)
+      .order('member_id', { ascending: true });
+
+    memberAttendanceData = fallbackMinimal.data as any;
+    memberError = fallbackMinimal.error;
   }
 
   console.log('👥 Raw member attendance records from DB:', memberAttendanceData);
