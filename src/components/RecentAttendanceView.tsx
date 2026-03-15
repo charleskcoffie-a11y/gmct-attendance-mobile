@@ -77,7 +77,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
   const [recentAvailableYears, setRecentAvailableYears] = useState<string[]>([]);
   const [recentSelectedMonth, setRecentSelectedMonth] = useState<string>("");
   const [recentAvailableMonths, setRecentAvailableMonths] = useState<string[]>([]);
-  const [recentSelectedWeek, setRecentSelectedWeek] = useState<number | null>(null);
+  const [recentSelectedWeek, setRecentSelectedWeek] = useState<string | null>(null);
   const [recentAvailableWeeks, setRecentAvailableWeeks] = useState<Week[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [classAttendanceSummary, setClassAttendanceSummary] = useState<ClassAttendanceSummary[]>([]);
@@ -204,7 +204,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
   }, [recentSelectedMonth, recentAttendanceDates]);
 
   useEffect(() => {
-    if (recentSelectedWeek !== null) loadRecentAttendanceForWeek();
+    if (recentSelectedWeek) loadRecentAttendanceForWeek();
   }, [recentSelectedWeek, recentAttendanceFilter, classNumber, recentSelectedClass, recentAvailableWeeks]);
 
   useEffect(() => {
@@ -478,12 +478,6 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         console.log("Final filtered dates for selected month:", filteredDates);
         setRecentAttendanceDates(filteredDates);
 
-        if (filteredDates.length > 0 && recentSelectedWeek === null) {
-          const firstWeek = getWeekNumber(filteredDates[0]);
-          console.log("Setting initial week to:", firstWeek);
-          setRecentSelectedWeek(firstWeek);
-        }
-        
         // Generate weeks synchronously to avoid timing issues with effects
         if (monthToUse) {
           console.log("Generating weeks for month:", monthToUse);
@@ -491,10 +485,10 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
           console.log("Generated weeks synchronously:", weeks.length);
           setRecentAvailableWeeks(weeks);
 
-          const isCurrentWeekValid = recentSelectedWeek !== null && weeks.some((w) => w.weekNumber === recentSelectedWeek);
+          const isCurrentWeekValid = !!recentSelectedWeek && weeks.some((w) => w.startDate === recentSelectedWeek);
           if (!isCurrentWeekValid) {
             const weekWithData = weeks.find((w) => w.dates.length > 0);
-            setRecentSelectedWeek((weekWithData || weeks[0])?.weekNumber ?? null);
+            setRecentSelectedWeek((weekWithData || weeks[0])?.startDate ?? null);
           }
         } else {
           setRecentAvailableWeeks([]);
@@ -525,16 +519,16 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     console.log("Generated weeks:", weeks.length, weeks.map(w => w.label));
     setRecentAvailableWeeks(weeks);
     
-    if (weeks.length > 0 && recentSelectedWeek === null) {
+    if (weeks.length > 0 && !recentSelectedWeek) {
       const weekWithData = weeks.find((w) => w.dates.length > 0);
-      setRecentSelectedWeek((weekWithData || weeks[0]).weekNumber);
+      setRecentSelectedWeek((weekWithData || weeks[0]).startDate);
     }
   };
 
   const loadRecentAttendanceForWeek = async () => {
     const requestId = ++loadWeekRequestIdRef.current;
     try {
-      if (recentSelectedWeek === null) {
+      if (!recentSelectedWeek) {
         console.log("No week selected");
         if (isAdminView) {
           setClassAttendanceSummary([]);
@@ -546,7 +540,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         return;
       }
 
-      const selectedWeekObj = recentAvailableWeeks.find(w => w.weekNumber === recentSelectedWeek);
+      const selectedWeekObj = recentAvailableWeeks.find(w => w.startDate === recentSelectedWeek);
       console.log("Loading attendance for week:", recentSelectedWeek, selectedWeekObj);
       if (!selectedWeekObj) {
         console.log("Week not found in available weeks");
@@ -809,7 +803,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
             <label className="block text-[10px] font-bold text-slate-300 mb-1.5 uppercase tracking-wide">Filter by Week</label>
             <select
               value={recentSelectedWeek || ""}
-              onChange={(e) => setRecentSelectedWeek(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => setRecentSelectedWeek(e.target.value || null)}
               className="w-full px-3 py-2 text-sm border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white cursor-pointer hover:border-slate-600"
               disabled={recentAvailableWeeks.length === 0}
             >
@@ -817,7 +811,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
                 <option value="">No weeks available</option>
               ) : (
                 recentAvailableWeeks.map((week) => (
-                  <option key={`week-${week.weekNumber}`} value={week.weekNumber} className="bg-slate-900 text-white">
+                  <option key={`week-${week.startDate}`} value={week.startDate} className="bg-slate-900 text-white">
                     {week.label}
                   </option>
                 ))
