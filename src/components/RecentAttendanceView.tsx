@@ -213,7 +213,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     } else {
       void loadMonthlyComparisonGraph();
     }
-  }, [graphMode, graphMetric, recentSelectedYear, recentSelectedMonth, recentAttendanceFilter, recentSelectedClass]);
+  }, [graphMode, graphMetric, recentSelectedYear, recentSelectedMonth, recentSelectedWeek, recentAttendanceFilter, recentSelectedClass]);
 
   const getGraphValue = (row: AttendanceRow) =>
     graphMetric === "sessions" ? 1 : (Number(row.total_members_present) || 0);
@@ -229,12 +229,22 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
       const monthStart = `${recentSelectedMonth}-01`;
       const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
       const monthEnd = `${recentSelectedMonth}-${String(lastDay).padStart(2, "0")}`;
+      const selectedWeekObj = recentSelectedWeek
+        ? recentAvailableWeeks.find((w) => w.startDate === recentSelectedWeek)
+        : null;
+
+      const rangeStart = selectedWeekObj
+        ? (selectedWeekObj.startDate < monthStart ? monthStart : selectedWeekObj.startDate)
+        : monthStart;
+      const rangeEnd = selectedWeekObj
+        ? (selectedWeekObj.endDate > monthEnd ? monthEnd : selectedWeekObj.endDate)
+        : monthEnd;
 
       let query = supabase
         .from("attendance")
         .select("attendance_date, class_number, total_members_present, service_type")
-        .gte("attendance_date", monthStart)
-        .lte("attendance_date", monthEnd)
+        .gte("attendance_date", rangeStart)
+        .lte("attendance_date", rangeEnd)
         .order("attendance_date", { ascending: true });
 
       if (recentAttendanceFilter !== "total") {
@@ -558,21 +568,17 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         .from("attendance")
         .select("*");
 
-      // Filter by dates in the week
-      if (selectedWeekObj.dates.length > 0) {
-        console.log("Querying dates:", selectedWeekObj.dates);
-        query = query.in("attendance_date", selectedWeekObj.dates);
-      } else {
-        console.log("No dates in week object");
-        if (isAdminView) {
-          setClassAttendanceSummary([]);
-        } else {
-          setRecentAttendanceCount(0);
-          setRecentAbsentCount(0);
-          setRecentSessionCount(0);
-        }
-        return;
-      }
+      const monthStart = recentSelectedMonth ? `${recentSelectedMonth}-01` : selectedWeekObj.startDate;
+      const monthEnd = recentSelectedMonth
+        ? `${recentSelectedMonth}-${String(new Date(Date.UTC(Number(recentSelectedMonth.split("-")[0]), Number(recentSelectedMonth.split("-")[1]), 0)).getUTCDate()).padStart(2, "0")}`
+        : selectedWeekObj.endDate;
+      const rangeStart = selectedWeekObj.startDate < monthStart ? monthStart : selectedWeekObj.startDate;
+      const rangeEnd = selectedWeekObj.endDate > monthEnd ? monthEnd : selectedWeekObj.endDate;
+
+      console.log("Querying week range:", rangeStart, rangeEnd);
+      query = query
+        .gte("attendance_date", rangeStart)
+        .lte("attendance_date", rangeEnd);
 
       // For non-admin view, filter by specific class if selected
       if (!isAdminView && recentSelectedClass) {
