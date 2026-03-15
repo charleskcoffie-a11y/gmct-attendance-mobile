@@ -408,9 +408,16 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         }
         console.log("After class filter:", filteredData.length, "records");
 
+        const withNormalizedDate = filteredData.map((r) => ({
+          ...r,
+          normalizedDate: normalizeAttendanceDate(r.attendance_date),
+        }));
+
         // Extract available years and sort descending (newest first)
         const allYears = [...new Set(
-          filteredData.map(r => r.attendance_date.split("-")[0])
+          withNormalizedDate
+            .map((r) => r.normalizedDate.split("-")[0])
+            .filter(Boolean)
         )].sort().reverse();
         console.log("Available years:", allYears);
         setRecentAvailableYears(allYears);
@@ -425,17 +432,19 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         // Filter by selected year when provided, else keep all years
         // NOTE: We do NOT filter by service type here - service type filtering happens in loadRecentAttendanceForWeek()
         // This ensures years/months/weeks are always available regardless of current filter
-        let filteredByYear = filteredData;
+        let filteredByYear = withNormalizedDate;
         if (yearToUse) {
-          filteredByYear = filteredData.filter(r => 
-            r.attendance_date.startsWith(yearToUse)
+          filteredByYear = withNormalizedDate.filter((r) =>
+            r.normalizedDate.startsWith(`${yearToUse}-`)
           );
         }
         console.log("After year filter:", filteredByYear.length, "records");
 
         // Extract available months in the selected year
         const allMonths = [...new Set(
-          filteredByYear.map(r => r.attendance_date.substring(0, 7))
+          filteredByYear
+            .map((r) => r.normalizedDate.substring(0, 7))
+            .filter((value) => value.length === 7)
         )].sort().reverse();
         console.log("Available months:", allMonths);
         setRecentAvailableMonths(allMonths);
@@ -450,12 +459,12 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         // Extract unique dates for the selected month (or the month we just set)
         let filteredByMonth = filteredByYear;
         if (monthToUse) {
-          filteredByMonth = filteredByYear.filter(r => 
-            r.attendance_date.startsWith(monthToUse)
+          filteredByMonth = filteredByYear.filter((r) =>
+            r.normalizedDate.startsWith(`${monthToUse}-`)
           );
         }
 
-        const filteredDates = [...new Set(filteredByMonth.map(r => r.attendance_date))].sort();
+        const filteredDates = [...new Set(filteredByMonth.map((r) => r.normalizedDate))].sort();
         console.log("Final filtered dates for selected month:", filteredDates);
         setRecentAttendanceDates(filteredDates);
 
