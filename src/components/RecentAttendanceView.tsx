@@ -54,6 +54,8 @@ type GraphMetric = "sessions" | "present";
 
 
 export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ classNumber }) => {
+  const normalizeAttendanceDate = (value: string): string => (value || "").slice(0, 10);
+
   const getNormalizedAbsent = (record: AttendanceRow) =>
     (Number(record.total_members_absent) || 0) +
     (Number(record.total_members_sick) || 0) +
@@ -98,7 +100,13 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
   // Helper function to get week number from date
   const getWeekNumber = (dateStr: string): number => {
-    const [y, m, d] = dateStr.split("-").map(Number);
+    const normalized = normalizeAttendanceDate(dateStr);
+    const [y, m, d] = normalized.split("-").map(Number);
+
+    if (!y || !m || !d) {
+      return 1;
+    }
+
     const date = new Date(y, m - 1, d);
     const day = date.getDay();
     const mondayDiff = day === 0 ? -6 : 1 - day;
@@ -119,29 +127,49 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
   };
 
-  // Helper function to get week range (start and end date)
-  const getWeekRange = (year: number, week: number): { start: string; end: string } => {
-    const jan1 = new Date(year, 0, 1);
-    const jan1Day = jan1.getDay();
-    const firstMondayDiff = jan1Day === 0 ? 1 : jan1Day === 1 ? 0 : 8 - jan1Day;
-    const firstMonday = new Date(year, 0, 1 + firstMondayDiff);
-    const startDate = new Date(firstMonday);
-    startDate.setDate(startDate.getDate() + (week - 1) * 7);
-    
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 6);
-    
-    const toLocalYmd = (dt: Date) => {
-      const yyyy = dt.getFullYear();
-      const mm = String(dt.getMonth() + 1).padStart(2, "0");
-      const dd = String(dt.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    };
+  const toLocalYmd = (dt: Date) => {
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
-    return {
-      start: toLocalYmd(startDate),
-      end: toLocalYmd(endDate)
-    };
+  const buildWeeksForMonth = (yearMonth: string, rawDates: string[]): Week[] => {
+    if (!yearMonth) return [];
+
+    const [year, month] = yearMonth.split("-").map(Number);
+    if (!year || !month) return [];
+
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0);
+    const normalizedDates = [...new Set(rawDates.map(normalizeAttendanceDate))].filter((d) => d.startsWith(yearMonth));
+
+    const startDay = monthStart.getDay();
+    const mondayDiff = startDay === 0 ? -6 : 1 - startDay;
+    const cursor = new Date(monthStart);
+    cursor.setDate(monthStart.getDate() + mondayDiff);
+
+    const weeks: Week[] = [];
+    while (cursor <= monthEnd) {
+      const weekStart = toLocalYmd(cursor);
+      const weekEndDate = new Date(cursor);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = toLocalYmd(weekEndDate);
+      const weekNumber = getWeekNumber(weekStart);
+      const datesInWeek = normalizedDates.filter((d) => d >= weekStart && d <= weekEnd);
+
+      weeks.push({
+        weekNumber,
+        label: `Week ${weekNumber}: ${new Date(weekStart + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(weekEnd + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+        startDate: weekStart,
+        endDate: weekEnd,
+        dates: datesInWeek,
+      });
+
+      cursor.setDate(cursor.getDate() + 7);
+    }
+
+    return weeks;
   };
 
   // Helper function to format month
@@ -457,38 +485,16 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         }
         
         // Generate weeks synchronously to avoid timing issues with effects
-        if (monthToUse && filteredDates.length > 0) {
+        if (monthToUse) {
           console.log("Generating weeks for month:", monthToUse);
-          const [year, month] = monthToUse.split("-").map(Number);
-          const weeksMap = new Map<number, Week>();
-          
-          filteredDates.forEach(dateStr => {
-            const [dateYear, dateMonth] = dateStr.split("-").map(Number);
-            if (dateYear === year && dateMonth === month) {
-              const weekNum = getWeekNumber(dateStr);
-              
-              if (!weeksMap.has(weekNum)) {
-                const range = getWeekRange(year, weekNum);
-                weeksMap.set(weekNum, {
-                  weekNumber: weekNum,
-                  label: `Week ${weekNum}: ${new Date(range.start + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(range.end + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-                  startDate: range.start,
-                  endDate: range.end,
-                  dates: []
-                });
-              }
-              
-              weeksMap.get(weekNum)!.dates.push(dateStr);
-            }
-          });
-          
-          const weeks = Array.from(weeksMap.values()).sort((a, b) => a.weekNumber - b.weekNumber);
+          const weeks = buildWeeksForMonth(monthToUse, filteredDates);
           console.log("Generated weeks synchronously:", weeks.length);
           setRecentAvailableWeeks(weeks);
 
           const isCurrentWeekValid = recentSelectedWeek !== null && weeks.some((w) => w.weekNumber === recentSelectedWeek);
           if (!isCurrentWeekValid) {
-            setRecentSelectedWeek(weeks.length > 0 ? weeks[0].weekNumber : null);
+            const weekWithData = weeks.find((w) => w.dates.length > 0);
+            setRecentSelectedWeek((weekWithData || weeks[0])?.weekNumber ?? null);
           }
         } else {
           setRecentAvailableWeeks([]);
@@ -510,42 +516,18 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
   const generateWeeksForMonth = () => {
     console.log("generateWeeksForMonth called with month:", recentSelectedMonth, "dates available:", recentAttendanceDates.length);
-    if (!recentSelectedMonth || recentAttendanceDates.length === 0) {
-      console.log("Skipping week generation - month not selected or no dates available");
+    if (!recentSelectedMonth) {
+      console.log("Skipping week generation - month not selected");
       return;
     }
 
-    const [year, month] = recentSelectedMonth.split("-").map(Number);
-    
-    // Get all weeks that contain dates from this month
-    const weeksMap = new Map<number, Week>();
-    
-    recentAttendanceDates.forEach(dateStr => {
-      const [dateYear, dateMonth] = dateStr.split("-").map(Number);
-      if (dateYear === year && dateMonth === month) {
-        const weekNum = getWeekNumber(dateStr);
-        
-        if (!weeksMap.has(weekNum)) {
-          const range = getWeekRange(year, weekNum);
-          weeksMap.set(weekNum, {
-            weekNumber: weekNum,
-            label: `Week ${weekNum}: ${new Date(range.start + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(range.end + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-            startDate: range.start,
-            endDate: range.end,
-            dates: []
-          });
-        }
-        
-        weeksMap.get(weekNum)!.dates.push(dateStr);
-      }
-    });
-
-    const weeks = Array.from(weeksMap.values()).sort((a, b) => a.weekNumber - b.weekNumber);
+    const weeks = buildWeeksForMonth(recentSelectedMonth, recentAttendanceDates);
     console.log("Generated weeks:", weeks.length, weeks.map(w => w.label));
     setRecentAvailableWeeks(weeks);
     
     if (weeks.length > 0 && recentSelectedWeek === null) {
-      setRecentSelectedWeek(weeks[0].weekNumber);
+      const weekWithData = weeks.find((w) => w.dates.length > 0);
+      setRecentSelectedWeek((weekWithData || weeks[0]).weekNumber);
     }
   };
 
