@@ -435,17 +435,19 @@ function App() {
                     <AttendanceRecords
                       classNumber={session!.classNumber}
                       onEditRecord={async (date, serviceType) => {
-                        console.log('📋 Edit record clicked:', { date, serviceType });
-                        // Load the member attendance records
-                        const memberStatuses = await getMemberAttendanceForDateAndService(
-                          session!.classNumber,
-                          date,
-                          serviceType as 'sunday' | 'bible-study'
-                        );
-                        console.log('📥 Loaded member statuses from record:', memberStatuses);
-                        console.log('📥 Count:', memberStatuses.length);
-                        memberStatuses.forEach((m: any) => console.log(`  - ${m.member_name}: ${m.status}`));
-                        setEditRecordDate(date);
+                        // Normalize date to YYYY-MM-DD in case DB returns full timestamp
+                        const normalizedDate = (date || '').slice(0, 10);
+                        let memberStatuses: Array<{ member_id: string; member_name: string; status: string }> = [];
+                        try {
+                          memberStatuses = await getMemberAttendanceForDateAndService(
+                            session!.classNumber,
+                            normalizedDate,
+                            serviceType as 'sunday' | 'bible-study'
+                          );
+                        } catch (err) {
+                          console.error('Failed to load member statuses for edit, opening with defaults:', err);
+                        }
+                        setEditRecordDate(normalizedDate);
                         setEditRecordServiceType(serviceType);
                         setEditRecordMemberStatuses(memberStatuses);
                         setClassView('edit');

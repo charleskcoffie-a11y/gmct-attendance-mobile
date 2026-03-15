@@ -574,14 +574,15 @@ export async function getMemberAttendanceForDateAndService(
   date: string,
   serviceType: 'sunday' | 'bible-study'
 ) {
-  console.log('🔍 getMemberAttendanceForDateAndService called:', { classNumber, date, serviceType });
-  
+  // Always use plain YYYY-MM-DD to match what Supabase stores
+  const normalizedDate = (date || '').slice(0, 10);
+
   // First get the attendance record
   const { data: attendanceRecord, error: attendanceError } = await supabase
     .from('attendance')
     .select('id')
     .eq('class_number', classNumber.toString())
-    .eq('attendance_date', date)
+    .eq('attendance_date', normalizedDate)
     .eq('service_type', serviceType)
     .limit(1)
     .maybeSingle();
