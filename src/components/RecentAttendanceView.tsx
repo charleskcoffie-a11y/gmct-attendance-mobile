@@ -691,6 +691,10 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     }
   };
 
+  const activeWeek = recentSelectedWeek
+    ? recentAvailableWeeks.find((w) => w.startDate === recentSelectedWeek)
+    : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-4 md:p-8 pb-24">
       {/* Header */}
@@ -823,6 +827,9 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
                 ))
               )}
             </select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Active week: {activeWeek ? `${activeWeek.label}` : "None selected"}
+            </p>
           </div>
         </div>
 
