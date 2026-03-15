@@ -415,14 +415,14 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         console.log("Available years:", allYears);
         setRecentAvailableYears(allYears);
 
-        // Set initial year if not already set - but continue processing
+        // Keep year optional. Empty year means "All Years".
         let yearToUse = recentSelectedYear;
-        if ((!recentSelectedYear || !allYears.includes(recentSelectedYear)) && allYears.length > 0) {
-          yearToUse = allYears[0];
-          setRecentSelectedYear(allYears[0]);
+        if (recentSelectedYear && !allYears.includes(recentSelectedYear)) {
+          yearToUse = "";
+          setRecentSelectedYear("");
         }
 
-        // Filter by selected year (or the year we just set)
+        // Filter by selected year when provided, else keep all years
         // NOTE: We do NOT filter by service type here - service type filtering happens in loadRecentAttendanceForWeek()
         // This ensures years/months/weeks are always available regardless of current filter
         let filteredByYear = filteredData;
@@ -746,6 +746,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
               }}
               className="w-full px-3 py-2 text-sm border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-900/60 text-white cursor-pointer hover:border-slate-600"
             >
+              <option value="" className="bg-slate-900 text-white">All Years</option>
               {recentAvailableYears.length > 0 ? (
                 recentAvailableYears.map((year) => (
                   <option key={`year-${year}`} value={year} className="bg-slate-900 text-white">
