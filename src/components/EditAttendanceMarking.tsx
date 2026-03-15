@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { saveAttendance, getClassMembers } from "../supabase";
+import { saveAttendance, getClassMembers, getMemberAttendanceForDateAndService } from "../supabase";
 import { Member } from "../types";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { MemberAttendanceRow } from "./MemberAttendanceRow";
@@ -47,12 +47,20 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const loadedMembers = (await getClassMembers(classNumber)) as Member[];
-      
-      // Apply the initial statuses to the loaded members
-      const membersWithStatuses: MemberWithStatus[] = loadedMembers.map((member: Member) => {
-        const existingStatus = initialMemberStatuses.find(
-          (s) => {
+      // Load class members and existing attendance records in parallel
+      const [loadedMembers, fetchedStatuses] = await Promise.all([
+        getClassMembers(classNumber) as Promise<Member[]>,
+        date
+          ? getMemberAttendanceForDateAndService(classNumber, date, serviceType).catch(() => [])
+          : Promise.resolve([] as Array<{ member_id: string; member_name: string; status: string; absence_reason?: string }>),
+      ]);
+
+      // Prefer freshly fetched statuses, fall back to any passed-in statuses
+      const statusSource = fetchedStatuses.length > 0 ? fetchedStatuses : initialMemberStatuses;
+
+      const membersWithStatuses: MemberWithStatus[] = (loadedMembers as Member[]).map((member: Member) => {
+        const existingStatus = statusSource.find(
+          (s: { member_id: string; member_name: string; status: string; absence_reason?: string }) => {
             const idMatch = String(s.member_id) === String(member.id);
             const normalizedStoredName = s.member_name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
             const normalizedMemberName = member.name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
@@ -60,7 +68,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
             return idMatch || nameMatch;
           }
         );
-        
+
         return {
           ...member,
           attendanceStatus: normalizeStatus(existingStatus?.status) === "present" ? "present" : "absent",
@@ -72,7 +80,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
               : normalizeAbsenceReason((existingStatus as any)?.absence_reason),
         };
       });
-      
+
       setMembers(membersWithStatuses);
     } catch (err) {
       setError("Failed to load members: " + (err instanceof Error ? err.message : "Unknown error"));

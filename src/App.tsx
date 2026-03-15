@@ -1,7 +1,6 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import Login from './components/Login';
 import ChangePassword from './components/ChangePassword';
-import { getMemberAttendanceForDateAndService } from './supabase';
 import { ClassSession, Member } from './types';
 import { authService } from './services/authService';
 
@@ -434,22 +433,12 @@ function App() {
                   <Suspense fallback={<ComponentLoader />}>
                     <AttendanceRecords
                       classNumber={session!.classNumber}
-                      onEditRecord={async (date, serviceType) => {
-                        // Normalize date to YYYY-MM-DD in case DB returns full timestamp
+                      onEditRecord={(date, serviceType) => {
+                        // Navigate immediately — EditAttendanceMarking loads its own data
                         const normalizedDate = (date || '').slice(0, 10);
-                        let memberStatuses: Array<{ member_id: string; member_name: string; status: string }> = [];
-                        try {
-                          memberStatuses = await getMemberAttendanceForDateAndService(
-                            session!.classNumber,
-                            normalizedDate,
-                            serviceType as 'sunday' | 'bible-study'
-                          );
-                        } catch (err) {
-                          console.error('Failed to load member statuses for edit, opening with defaults:', err);
-                        }
                         setEditRecordDate(normalizedDate);
                         setEditRecordServiceType(serviceType);
-                        setEditRecordMemberStatuses(memberStatuses);
+                        setEditRecordMemberStatuses([]);
                         setClassView('edit');
                       }}
                     />
