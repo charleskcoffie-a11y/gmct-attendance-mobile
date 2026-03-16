@@ -78,6 +78,7 @@ export async function getClassMembers(classNumber: number) {
     .from('members')
     .select('*')
     .eq('class_number', classNumberText)
+    .eq('is_active', true)
     .order('name', { ascending: true });
 
   if (error) {
