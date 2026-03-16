@@ -9,6 +9,7 @@ interface EditAttendanceMarkingProps {
   date: string;
   serviceType: 'sunday' | 'bible-study';
   initialMemberStatuses: Array<{ member_id: string; member_name: string; status: string }>;
+  includeMemberEmail?: string;
   onBack: () => void;
 }
 
@@ -30,6 +31,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   date,
   serviceType,
   initialMemberStatuses,
+  includeMemberEmail,
   onBack,
 }) => {
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
@@ -42,7 +44,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   useEffect(() => {
     loadMembers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classNumber, date, serviceType]);
+  }, [classNumber, date, serviceType, includeMemberEmail]);
 
   const loadMembers = async () => {
     setLoading(true);
@@ -50,7 +52,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
     try {
       // Load class members and existing attendance records in parallel
       const [loadedMembers, fetchedStatuses] = await Promise.all([
-        getClassMembers(classNumber) as Promise<Member[]>,
+        getClassMembers(classNumber, includeMemberEmail) as Promise<Member[]>,
         date
           ? getMemberAttendanceForDateAndService(classNumber, date, serviceType).catch(() => [])
           : Promise.resolve([] as Array<{ member_id: string; member_name: string; status: string; absence_reason?: string }>),

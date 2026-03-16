@@ -236,7 +236,11 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
 
       {view === 'attendance' ? (
         <Suspense fallback={<ComponentLoader />}>
-          <AttendanceMarking classNumber={mappedClassNumber} isAdminView={false} />
+          <AttendanceMarking
+            classNumber={mappedClassNumber}
+            isAdminView={false}
+            includeMemberEmail={currentMember.email}
+          />
         </Suspense>
       ) : view === 'records' ? (
         <Suspense fallback={<ComponentLoader />}>
@@ -255,6 +259,7 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
           date={editRecordDate}
           serviceType={editRecordServiceType as 'sunday' | 'bible-study'}
           initialMemberStatuses={[]}
+          includeMemberEmail={currentMember.email}
           onBack={() => setView('records')}
         />
       ) : view === 'recent-records' ? (

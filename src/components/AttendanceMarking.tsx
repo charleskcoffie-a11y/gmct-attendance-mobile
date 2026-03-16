@@ -8,6 +8,7 @@ interface AttendanceMarkingProps {
   classNumber: number;
   onBackToClasses?: () => void;
   isAdminView?: boolean;
+  includeMemberEmail?: string;
   initialDate?: string;
   initialServiceType?: string;
   initialMemberStatuses?: Array<{ member_id: string; member_name: string; status: string }>;
@@ -40,6 +41,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   classNumber,
   onBackToClasses,
   isAdminView,
+  includeMemberEmail,
   initialDate,
   initialServiceType,
   initialMemberStatuses,
@@ -111,7 +113,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [classNumber]);
+  }, [classNumber, includeMemberEmail]);
 
   // Set initial date and service type if provided (for editing records)
   // This triggers first when editing
@@ -251,7 +253,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const loadedMembers = await getClassMembers(classNumber);
+      const loadedMembers = await getClassMembers(classNumber, includeMemberEmail);
       console.log('📥 Loaded members from DB:', loadedMembers);
       const membersWithStatus: MemberWithStatus[] = (loadedMembers as Member[]).map((m) => ({
         ...m,

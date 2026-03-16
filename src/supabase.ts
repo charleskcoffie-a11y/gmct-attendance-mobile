@@ -72,13 +72,16 @@ export async function validateClassAccessCode(accessCode: string): Promise<numbe
 }
 
 // Get members for a specific class
-export async function getClassMembers(classNumber: number) {
+// Optionally include one extra active member (by email), useful when a class leader
+// teaches a class different from their personal class_number and should mark self.
+export async function getClassMembers(classNumber: number, includeMemberEmail?: string) {
   const classNumberText = classNumber.toString();
+  const normalizedIncludeEmail = includeMemberEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('members')
     .select('*')
     .eq('class_number', classNumberText)
-    .eq('is_active', true)
+    .eq('active', true)
     .order('name', { ascending: true });
 
   if (error) {
@@ -86,12 +89,51 @@ export async function getClassMembers(classNumber: number) {
     return [];
   }
 
-  return (data || []).map((m: any) => ({
+  const baseMembers = (data || []).map((m: any) => ({
     ...m,
     id: String(m.id),
     assignedClass: m.class_number ? parseInt(m.class_number, 10) : undefined,
     phoneNumber: m.phone ?? m.phoneNumber
   }));
+
+  if (!normalizedIncludeEmail) {
+    return baseMembers;
+  }
+
+  const alreadyIncluded = baseMembers.some(
+    (m: any) => (m.email || '').toString().trim().toLowerCase() === normalizedIncludeEmail
+  );
+
+  if (alreadyIncluded) {
+    return baseMembers;
+  }
+
+  const { data: extraMemberData, error: extraMemberError } = await supabase
+    .from('members')
+    .select('*')
+    .eq('active', true)
+    .ilike('email', normalizedIncludeEmail)
+    .limit(1);
+
+  if (extraMemberError) {
+    console.error('Error fetching included member by email:', extraMemberError);
+    return baseMembers;
+  }
+
+  if (!extraMemberData || extraMemberData.length === 0) {
+    return baseMembers;
+  }
+
+  const includedMember = {
+    ...extraMemberData[0],
+    id: String(extraMemberData[0].id),
+    assignedClass: extraMemberData[0].class_number ? parseInt(extraMemberData[0].class_number, 10) : undefined,
+    phoneNumber: extraMemberData[0].phone ?? extraMemberData[0].phoneNumber
+  };
+
+  return [...baseMembers, includedMember].sort((a: any, b: any) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
 }
 
 // Save/update member
