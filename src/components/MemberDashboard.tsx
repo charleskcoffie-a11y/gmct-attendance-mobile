@@ -1,6 +1,7 @@
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { Member } from '../types';
 import { Users, ClipboardCheck, FileText, LogOut, ArrowLeft, Coins } from 'lucide-react';
+import EditAttendanceMarking from './EditAttendanceMarking';
 
 const AttendanceMarking = lazy(() => import('./AttendanceMarking'));
 const AttendanceRecords = lazy(() => import('./AttendanceRecords'));
@@ -14,7 +15,7 @@ interface MemberDashboardProps {
   onMemberUpdated: (member: Member) => void;
 }
 
-type MemberView = 'profile' | 'contributions' | 'attendance' | 'records' | 'recent-records' | 'reports';
+type MemberView = 'profile' | 'contributions' | 'attendance' | 'records' | 'recent-records' | 'reports' | 'edit';
 
 const ComponentLoader = () => (
   <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
@@ -30,6 +31,8 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
     typeof member.assignedClass === 'number' && member.assignedClass > 0 ? 'profile' : 'contributions'
   ));
   const [currentMember, setCurrentMember] = useState<Member>(member);
+  const [editRecordDate, setEditRecordDate] = useState<string>('');
+  const [editRecordServiceType, setEditRecordServiceType] = useState<string>('sunday');
 
   useEffect(() => {
     setCurrentMember(member);
@@ -43,7 +46,7 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
   const isClassLeader = typeof mappedClassNumber === 'number' && mappedClassNumber > 0;
 
   useEffect(() => {
-    if (!isClassLeader && (view === 'attendance' || view === 'records' || view === 'recent-records' || view === 'reports')) {
+    if (!isClassLeader && (view === 'attendance' || view === 'records' || view === 'recent-records' || view === 'reports' || view === 'edit')) {
       setView('contributions');
     }
   }, [isClassLeader, view]);
@@ -217,6 +220,8 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
                 ? 'Attendance Records'
                 : view === 'recent-records'
                 ? 'Recent Records'
+                : view === 'edit'
+                ? 'Edit Attendance'
                 : 'Class Reports'}
             </p>
           </div>
@@ -235,8 +240,23 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
         </Suspense>
       ) : view === 'records' ? (
         <Suspense fallback={<ComponentLoader />}>
-          <AttendanceRecords classNumber={mappedClassNumber} />
+          <AttendanceRecords
+            classNumber={mappedClassNumber}
+            onEditRecord={(date, serviceType) => {
+              setEditRecordDate(date.slice(0, 10));
+              setEditRecordServiceType(serviceType);
+              setView('edit');
+            }}
+          />
         </Suspense>
+      ) : view === 'edit' ? (
+        <EditAttendanceMarking
+          classNumber={mappedClassNumber}
+          date={editRecordDate}
+          serviceType={editRecordServiceType as 'sunday' | 'bible-study'}
+          initialMemberStatuses={[]}
+          onBack={() => setView('records')}
+        />
       ) : view === 'recent-records' ? (
         <Suspense fallback={<ComponentLoader />}>
           <RecentAttendanceView classNumber={mappedClassNumber} />

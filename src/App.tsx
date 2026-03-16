@@ -1,12 +1,12 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import Login from './components/Login';
 import ChangePassword from './components/ChangePassword';
+import EditAttendanceMarking from './components/EditAttendanceMarking';
 import { ClassSession, Member } from './types';
 import { authService } from './services/authService';
 
 // Lazy load components for code splitting & performance
 const AttendanceMarking = lazy(() => import('./components/AttendanceMarking'));
-const EditAttendanceMarking = lazy(() => import('./components/EditAttendanceMarking'));
 const AdminAttendanceView = lazy(() => import('./components/AdminAttendanceView'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const AdminClassSelector = lazy(() => import('./components/AdminClassSelector'));
@@ -60,20 +60,12 @@ function App() {
     const savedSession = localStorage.getItem('classSession');
     const savedMemberSession = localStorage.getItem('memberSession');
 
-    if (savedMemberSession) {
-      try {
-        const parsedMember = JSON.parse(savedMemberSession);
-        setMemberSession(parsedMember);
-        void refreshMemberSession();
-      } catch (error) {
-        console.error('Error loading member session:', error);
-        localStorage.removeItem('memberSession');
-      }
-    }
-
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
+        // Class leader session takes priority — clear any stale member session
+        localStorage.removeItem('memberSession');
+        setMemberSession(null);
         setSession(parsed);
         setIsAdmin(parsed.classNumber === -1);
         if (parsed.classNumber === -1) {
@@ -82,6 +74,15 @@ function App() {
       } catch (error) {
         console.error('Error loading session:', error);
         localStorage.removeItem('classSession');
+      }
+    } else if (savedMemberSession) {
+      try {
+        const parsedMember = JSON.parse(savedMemberSession);
+        setMemberSession(parsedMember);
+        void refreshMemberSession();
+      } catch (error) {
+        console.error('Error loading member session:', error);
+        localStorage.removeItem('memberSession');
       }
     }
   }, []);
@@ -101,6 +102,9 @@ function App() {
       accessCode,
       loginTime: new Date().toISOString()
     };
+    // Clear any stale member session so class leader view takes priority
+    setMemberSession(null);
+    localStorage.removeItem('memberSession');
     setSession(newSession);
     setIsAdmin(classNumber === -1);
     if (classNumber === -1) {

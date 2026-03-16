@@ -325,11 +325,26 @@ export const AttendanceRecords: React.FC<AttendanceRecordsProps> = ({
                                             </div>
                                           </div>
                                           <button
-                                            onClick={() => onEditRecord?.(record.attendance_date, record.service_type || "sunday")}
-                                            className="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/50 active:scale-90 hover:bg-blue-500/30 transition shrink-0"
-                                            title="Edit attendance"
+                                            type="button"
+                                            disabled={!onEditRecord}
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              if (!onEditRecord) return;
+                                              onEditRecord((record.attendance_date || "").slice(0, 10), record.service_type || "sunday");
+                                            }}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                if (!onEditRecord) return;
+                                                onEditRecord((record.attendance_date || "").slice(0, 10), record.service_type || "sunday");
+                                              }
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/60 active:scale-95 hover:bg-blue-500/30 transition shrink-0 font-semibold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title={onEditRecord ? "Edit attendance" : "Edit unavailable in this view"}
                                           >
                                             <Edit className="w-4 h-4" />
+                                            <span>Edit</span>
                                           </button>
                                         </div>
                                       </div>

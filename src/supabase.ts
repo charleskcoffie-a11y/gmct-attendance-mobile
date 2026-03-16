@@ -467,9 +467,40 @@ export async function saveAttendance(
   memberRecords: Array<{ memberId: string; status: string; memberName?: string; absenceReason?: string }>,
   classLeaderName?: string
 ) {
+  const normalizedDate = (date || '').slice(0, 10);
+
   const normalizeAbsenceReason = (value?: string): 'S' | 'D' | 'B' | null => {
     const normalized = (value || '').toString().trim().toUpperCase();
     return normalized === 'S' || normalized === 'D' || normalized === 'B' ? normalized : null;
+  };
+
+  const findAttendanceRecord = async (selectClause = 'id') => {
+    const dayStart = `${normalizedDate}T00:00:00`;
+    const dayEnd = `${normalizedDate}T23:59:59`;
+
+    let result = await supabase
+      .from('attendance')
+      .select(selectClause)
+      .eq('class_number', classNumber.toString())
+      .eq('service_type', serviceType)
+      .gte('attendance_date', dayStart)
+      .lte('attendance_date', dayEnd)
+      .order('attendance_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!result.data && !result.error) {
+      result = await supabase
+        .from('attendance')
+        .select(selectClause)
+        .eq('class_number', classNumber.toString())
+        .eq('attendance_date', normalizedDate)
+        .eq('service_type', serviceType)
+        .limit(1)
+        .maybeSingle();
+    }
+
+    return result;
   };
 
   const normalizedRecords = memberRecords.map((record) => ({
@@ -480,28 +511,50 @@ export async function saveAttendance(
 
   // Calculate summary stats
   const totalMembersPresent = normalizedRecords.filter(r => r.status === 'present').length;
-  const totalMembersAbsent = normalizedRecords.filter(r => r.status === 'absent').length;
-  const totalMembersSick = normalizedRecords.filter(r => r.status === 'sick').length;
-  const totalMembersTravel = normalizedRecords.filter(r => r.status === 'travel').length;
-  
-  // Upsert attendance summary record
-  const { data: attendanceData, error: attendanceError } = await supabase
-    .from('attendance')
-    .upsert({
-      class_number: classNumber.toString(),
-      attendance_date: date,
-      service_type: serviceType,
-      class_leader_name: classLeaderName || `Class ${classNumber} Leader`,
-      total_members_present: totalMembersPresent,
-      total_members_absent: totalMembersAbsent,
-      total_members_sick: totalMembersSick,
-      total_members_travel: totalMembersTravel,
-      total_visitors: 0,
-    }, { 
-      onConflict: 'class_number,attendance_date,service_type' 
-    })
-    .select()
-    .single();
+  const totalMembersAbsent = normalizedRecords.filter(r => r.status !== 'present').length;
+  const totalMembersSick = normalizedRecords.filter(r => r.status === 'sick' || (r.status !== 'present' && r.absenceReason === 'S')).length;
+  const totalMembersTravel = normalizedRecords.filter(r => r.status === 'travel' || (r.status !== 'present' && r.absenceReason === 'D')).length;
+
+  const summaryPayload = {
+    class_number: classNumber.toString(),
+    attendance_date: normalizedDate,
+    service_type: serviceType,
+    class_leader_name: classLeaderName || `Class ${classNumber} Leader`,
+    total_members_present: totalMembersPresent,
+    total_members_absent: totalMembersAbsent,
+    total_members_sick: totalMembersSick,
+    total_members_travel: totalMembersTravel,
+    total_visitors: 0,
+  };
+
+  const { data: existingAttendance, error: existingAttendanceError } = await findAttendanceRecord('id');
+
+  if (existingAttendanceError) {
+    console.error('Error checking existing attendance summary:', existingAttendanceError);
+    throw existingAttendanceError;
+  }
+
+  let attendanceData: any = null;
+  let attendanceError: any = null;
+
+  if (existingAttendance?.id) {
+    const updateResult = await supabase
+      .from('attendance')
+      .update(summaryPayload)
+      .eq('id', existingAttendance.id)
+      .select()
+      .single();
+    attendanceData = updateResult.data;
+    attendanceError = updateResult.error;
+  } else {
+    const insertResult = await supabase
+      .from('attendance')
+      .insert(summaryPayload)
+      .select()
+      .single();
+    attendanceData = insertResult.data;
+    attendanceError = insertResult.error;
+  }
   
   if (attendanceError) {
     console.error('Error saving attendance summary:', attendanceError);
@@ -515,7 +568,14 @@ export async function saveAttendance(
       member_id: record.memberId,
       member_name: (record.memberName || record.memberId || '').toString().trim(),
       class_number: classNumber.toString(),
-      status: record.status,
+      status:
+        record.status === 'present'
+          ? 'present'
+          : record.absenceReason === 'S'
+          ? 'sick'
+          : record.absenceReason === 'D'
+          ? 'travel'
+          : 'absent',
       absence_reason: record.status === 'present' ? null : record.absenceReason,
     }));
 
@@ -551,14 +611,33 @@ export async function getAttendanceByDateAndService(
   date: string,
   serviceType: 'sunday' | 'bible-study'
 ) {
-  const { data, error } = await supabase
+  const normalizedDate = (date || '').slice(0, 10);
+  const dayStart = `${normalizedDate}T00:00:00`;
+  const dayEnd = `${normalizedDate}T23:59:59`;
+
+  let { data, error } = await supabase
     .from('attendance')
     .select('*')
     .eq('class_number', classNumber.toString())
-    .eq('attendance_date', date)
     .eq('service_type', serviceType)
+    .gte('attendance_date', dayStart)
+    .lte('attendance_date', dayEnd)
+    .order('attendance_date', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (!data && !error) {
+    const exactMatch = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('class_number', classNumber.toString())
+      .eq('attendance_date', normalizedDate)
+      .eq('service_type', serviceType)
+      .limit(1)
+      .maybeSingle();
+    data = exactMatch.data;
+    error = exactMatch.error;
+  }
   
   if (error) {
     console.error('Error fetching attendance record:', error);
