@@ -332,9 +332,9 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
     
     // Otherwise, update member status normally
-    setMembers(
-      members.map((m) =>
-        m.id === memberId
+    setMembers((prevMembers) =>
+      prevMembers.map((m) =>
+        String(m.id) === String(memberId)
           ? {
               ...m,
               attendanceStatus: status as any,
@@ -349,7 +349,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const updateMemberAbsenceReason = (memberId: string, reason: "S" | "D" | "B" | "") => {
     setMembers((prevMembers) =>
       prevMembers.map((m) =>
-        m.id === memberId
+        String(m.id) === String(memberId)
           ? { ...m, attendanceStatus: m.attendanceStatus === "present" ? "absent" : m.attendanceStatus, absenceReason: reason }
           : m
       )
