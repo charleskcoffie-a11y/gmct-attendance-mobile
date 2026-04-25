@@ -22,7 +22,7 @@ export default function Login({ onLogin, onMemberLogin }: LoginProps) {
     try {
       const normalizedLoginId = loginId.trim();
       if (!normalizedLoginId || !password) {
-        setError('Please enter your class number and password');
+        setError('Please enter your member number/ID and password');
         return;
       }
 
@@ -94,7 +94,7 @@ export default function Login({ onLogin, onMemberLogin }: LoginProps) {
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
                 <label htmlFor="loginId" className="block text-base font-semibold text-slate-200 mb-2">
-                  Class Number
+                  Member Number / ID
                 </label>
                 <input
                   id="loginId"
@@ -104,7 +104,7 @@ export default function Login({ onLogin, onMemberLogin }: LoginProps) {
                     setLoginId(e.target.value);
                     setError('');
                   }}
-                  placeholder="e.g., A123"
+                  placeholder="e.g., 123"
                   className="w-full px-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:border-transparent text-base bg-slate-900/70 text-white"
                   required
                   autoFocus

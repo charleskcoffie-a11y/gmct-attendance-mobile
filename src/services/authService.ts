@@ -409,10 +409,10 @@ export class AuthService {
    */
   parseError(errorMessage: string): string {
     if (errorMessage.includes('Invalid login credentials')) {
-      return 'Invalid class number or password';
+      return 'Invalid member number/ID or password';
     }
     if (errorMessage.includes('User already registered')) {
-      return 'This class number is already registered';
+      return 'This member number/ID is already registered';
     }
     if (errorMessage.includes('Email not confirmed')) {
       return 'Please confirm your email address';
