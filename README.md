@@ -64,11 +64,12 @@ The production build will be in the `dist` folder.
 
 ## Usage
 
-### For Class Leaders
+### For Members and Class Leaders
 
 1. **Login**
-   - Enter your class access code (e.g., "alpha" for Class 1)
-   - Or use simple format: "class1", "class2", etc.
+   - Enter your member number/ID as username (e.g., `123`)
+   - First-time default password is `gmct2026`
+   - Change your password after first login
 
 2. **Mark Attendance**
    - Select the date (defaults to today)
@@ -183,6 +184,12 @@ npm run build
 - Ensure you have internet connection on first use
 - Check that class number matches your setup
 - Verify access code is correct
+
+### Can't log in
+
+- Make sure username is your member number/ID (not class name)
+- Use `gmct2026` for first-time login
+- Check internet connection and try again
 
 ## Support
 

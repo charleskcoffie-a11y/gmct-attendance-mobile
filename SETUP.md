@@ -53,7 +53,7 @@ The app will open at http://localhost:3001
 
 ### 6. Test the App
 
-1. **Login**: Use a class access code (e.g., "alpha", "beta", or "class1", "class2")
+1. **Login**: Use member number/ID as username (e.g., `123`) and `gmct2026` as the initial password
 2. **Mark Attendance**: Select statuses for members
 3. **Test Offline**: 
    - Open DevTools (F12)
