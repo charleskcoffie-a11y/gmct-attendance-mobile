@@ -288,11 +288,17 @@ export default function MemberManagement({ onBack }: MemberManagementProps) {
     try {
       const results = await bulkCreateMemberAuth(bulkAuthAdminPassword.trim());
       setBulkAuthResults(results);
-      setSuccess(`Auth accounts created! ${results.summary.created} created, ${results.summary.skipped} skipped, ${results.summary.errors} errors.`);
+      const repairedEmails = results.summary.emails_updated || 0;
+      setSuccess(`Member auth repair completed. ${results.summary.created} created, ${repairedEmails} emails fixed, ${results.summary.skipped} skipped, ${results.summary.errors} errors.`);
       setBulkAuthAdminPassword('');
     } catch (err: any) {
       console.error('Error creating member auth:', err);
-      setError(err?.message || 'Failed to create member auth accounts');
+      const message = err?.message || 'Failed to repair member auth accounts';
+      if (message.includes('repair_member_auth_accounts')) {
+        setError('Member auth repair function not found. Run SQL migration: 2026-04-26_repair_member_auth_emails_and_accounts.sql');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -699,8 +705,8 @@ export default function MemberManagement({ onBack }: MemberManagementProps) {
               {!bulkAuthResults ? (
                 <div className="space-y-4">
                   <p className="text-slate-300">
-                    This will create auth accounts for all members who don't have them yet.
-                    All accounts will be created with the default password: <span className="font-bold text-emerald-400">gmct2026</span>
+                    This will backfill missing member auth emails and create auth accounts for members who do not have them yet.
+                    New or repaired accounts will use the default password: <span className="font-bold text-emerald-400">gmct2026</span>
                   </p>
 
                   <div>
@@ -755,6 +761,10 @@ export default function MemberManagement({ onBack }: MemberManagementProps) {
                       <div>
                         <span className="text-slate-400">Errors:</span>
                         <span className="ml-2 font-bold text-red-400">{bulkAuthResults.summary.errors}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Emails Fixed:</span>
+                        <span className="ml-2 font-bold text-cyan-400">{bulkAuthResults.summary.emails_updated || 0}</span>
                       </div>
                     </div>
                     <p className="mt-4 text-sm text-slate-400">

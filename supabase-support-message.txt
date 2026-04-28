@@ -1,0 +1,44 @@
+Subject: Production auth endpoint returns 500 unexpected_failure for all password logins, despite healthy auth schema/data
+
+Hi Supabase team,
+
+I need help with a project-wide Auth failure.
+
+Project details:
+- Project ref: hxgojapfsqsmwveaszvn
+- Region: YYZ (based on error IDs)
+- Endpoint failing: POST /auth/v1/token?grant_type=password
+- Failure: 500 unexpected_failure, message: Database error querying schema
+- Happens for all tested users (example email: 100@gmct.member)
+
+Recent error IDs:
+- 9f2b048bb906c8b2-YYZ
+- 9f2b0dca9f9636a6-YYZ
+- 9f2b129f2f89b1a2-YYZ
+
+What I already verified:
+1. auth schema objects exist and are queryable
+2. auth.schema_migrations count = 76
+3. auth.users count = 760
+4. auth.identities (provider=email) count = 760
+5. No duplicate user emails
+6. No duplicate email identities
+7. No custom non-internal triggers on auth.users/auth.identities
+8. Required auth.users columns are present (no missing required columns)
+9. supabase_auth_admin has auth schema usage and full CRUD privileges on auth tables
+10. extensions crypt/gen_salt execute privileges are present
+
+Direct API repro:
+- Calling token endpoint directly with current anon key also returns:
+  - code: 500
+  - error_code: unexpected_failure
+  - msg: Database error querying schema
+
+Conclusion:
+- This appears to be a GoTrue/Auth runtime issue at project level, not app code or user row integrity.
+
+Request:
+- Please inspect backend Auth service logs for the listed error IDs and identify the exact failing DB query/object.
+- Please advise if this project requires backend repair on Supabase side.
+
+Thanks.

@@ -226,43 +226,74 @@ export async function updateMemberProfile(
 
 // Admin utility: reset a member's auth password to the default.
 export async function resetMemberPasswordToDefault(memberId: string, adminCode: string) {
-  const { data, error } = await supabase.functions.invoke('reset-member-password', {
+  const { data, error } = await supabase.rpc('reset_member_password_to_default', {
+    p_member_id: memberId,
+    p_admin_code: adminCode,
+  });
+
+  if (!error) {
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data;
+  }
+
+  // Backward-compatible fallback for environments that still rely on the
+  // older edge function deployment.
+  console.warn('RPC password reset failed, falling back to edge function:', error);
+
+  const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('reset-member-password', {
     body: {
-      memberId: memberId,
-      adminCode: adminCode,
+      memberId,
+      adminCode,
     },
   });
 
-  if (error) {
-    console.error('Error resetting member password:', error);
-    throw error;
+  if (fallbackError) {
+    console.error('Error resetting member password:', fallbackError);
+    throw fallbackError;
   }
 
-  if (data?.error) {
-    throw new Error(data.error);
+  if (fallbackData?.error) {
+    throw new Error(fallbackData.error);
   }
 
-  return data;
+  return fallbackData;
 }
 
 // Admin utility: bulk create auth accounts for all members who don't have them
 export async function bulkCreateMemberAuth(adminCode: string) {
-  const { data, error } = await supabase.functions.invoke('Bulk-Create-member-auth', {
+  const { data, error } = await supabase.rpc('repair_member_auth_accounts', {
+    p_admin_code: adminCode,
+  });
+
+  if (!error) {
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data;
+  }
+
+  console.warn('RPC bulk member auth repair failed, falling back to edge function:', error);
+
+  const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('bulk-create-member-auth', {
     body: {
-      adminCode: adminCode,
+      adminCode,
     },
   });
 
-  if (error) {
-    console.error('Error bulk creating member auth:', error);
-    throw error;
+  if (fallbackError) {
+    console.error('Error bulk creating member auth:', fallbackError);
+    throw fallbackError;
   }
 
-  if (data?.error) {
-    throw new Error(data.error);
+  if (fallbackData?.error) {
+    throw new Error(fallbackData.error);
   }
 
-  return data;
+  return fallbackData;
 }
 
 function normalizeContributionCategory(value: string | null | undefined): MemberContribution['category'] {

@@ -12,13 +12,43 @@ interface ClassLeaderMapping {
 }
 
 export class AuthService {
+  private async resolveLoginEmail(loginIdentifier: string): Promise<string> {
+    const normalizedIdentifier = loginIdentifier.trim().toLowerCase();
+    if (!normalizedIdentifier) {
+      return '';
+    }
+
+    if (normalizedIdentifier.includes('@')) {
+      return normalizedIdentifier;
+    }
+
+    const { data, error } = await supabase
+      .from('members')
+      .select('email, class_number, member_number')
+      .or(
+        [
+          `member_number.ilike.${normalizedIdentifier}`,
+          `class_number.ilike.${normalizedIdentifier}`,
+          `email.ilike.${normalizedIdentifier}@gmct.member`,
+        ].join(',')
+      )
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Unable to resolve login identifier from members table:', error);
+    }
+
+    return data?.email?.trim().toLowerCase() || this.classNumberToEmail(normalizedIdentifier);
+  }
+
   /**
    * Sign in with class number and password
    * Converts classNumber to internal email format: {classNumber}@gmct.member
    */
   async signIn(classNumber: string, password: string) {
     try {
-      const email = this.classNumberToEmail(classNumber);
+      const email = await this.resolveLoginEmail(classNumber);
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
