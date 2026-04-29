@@ -19,7 +19,8 @@ export interface Member {
   dob_month?: number;      // Month (1-12)
   dob_day?: number;        // Day (1-31)
   day_born?: string;       // Day of week born (Sunday-Saturday)
-  is_active?: boolean;     // Active member status
+  active?: boolean;        // Active member status
+  is_active?: boolean;     // Backward-compatible alias used by existing UI flows
   dev_fund_pledge?: boolean; // Whether member has pledged to development fund
   created_at?: string;
   updated_at?: string;

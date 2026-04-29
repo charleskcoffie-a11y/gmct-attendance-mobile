@@ -45,10 +45,61 @@ export class AuthService {
   /**
    * Sign in with class number and password
    * Converts classNumber to internal email format: {classNumber}@gmct.member
+   * Only allows active members to sign in
    */
   async signIn(classNumber: string, password: string) {
     try {
-      const email = await this.resolveLoginEmail(classNumber);
+      const normalizedIdentifier = classNumber.trim().toLowerCase();
+
+      // Resolve candidate member rows so duplicate member numbers do not break login.
+      const { data: memberRows, error: memberError } = await supabase
+        .from('members')
+        .select('id, email, member_number, class_number, active, created_at')
+        .or(
+          [
+            `member_number.ilike.${normalizedIdentifier}`,
+            `class_number.ilike.${normalizedIdentifier}`,
+            `email.ilike.${normalizedIdentifier}@gmct.member`,
+          ].join(',')
+        )
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(20);
+
+      if (memberError) {
+        throw new Error('Unable to verify member profile right now');
+      }
+
+      if (!memberRows || memberRows.length === 0) {
+        throw new Error('Member not found');
+      }
+
+      const exactMatches = memberRows.filter((row) => {
+        const memberNumber = row.member_number?.toString().trim().toLowerCase();
+        const classNum = row.class_number?.toString().trim().toLowerCase();
+        const email = row.email?.trim().toLowerCase();
+
+        return (
+          memberNumber === normalizedIdentifier ||
+          classNum === normalizedIdentifier ||
+          email === normalizedIdentifier ||
+          email === `${normalizedIdentifier}@gmct.member`
+        );
+      });
+
+      const candidates = exactMatches.length > 0 ? exactMatches : memberRows;
+      const memberData = candidates.find((row) => row.active === true) || candidates[0];
+
+      if (memberData.active === false) {
+        throw new Error(`Member ${memberData.member_number} is inactive. Please contact administration.`);
+      }
+
+      const email =
+        memberData.email?.trim().toLowerCase() ||
+        this.classNumberToEmail(memberData.member_number || memberData.class_number || normalizedIdentifier);
+
+      if (!email) {
+        throw new Error('Member email not found');
+      }
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -257,16 +308,25 @@ export class AuthService {
 
       if (!user?.email) return null;
 
-      const { data, error } = await supabase
+      const { data: memberRows, error } = await supabase
         .from('members')
         .select('id, name, email, class_number, member_number, phone, address, city, province, date_of_birth, dob_month, dob_day, day_born, active, dev_fund_pledge, created_at')
-        .eq('email', user.email)
-        .single();
+        .or(`id.eq.${user.id},email.ilike.${user.email}`)
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(20);
 
       if (error) {
         console.error('Error fetching member info:', error);
         return null;
       }
+
+      if (!memberRows || memberRows.length === 0) {
+        return null;
+      }
+
+      const prioritizedById = memberRows.filter((row) => row.id === user.id);
+      const candidateSet = prioritizedById.length > 0 ? prioritizedById : memberRows;
+      const data = candidateSet.find((row) => row.active === true) || candidateSet[0];
 
       const leaderMapping = await this.resolveClassLeaderMapping(user.email);
 
@@ -287,6 +347,7 @@ export class AuthService {
         dob_month: data.dob_month,
         dob_day: data.dob_day,
         day_born: data.day_born,
+        active: data.active,
         is_active: data.active,
         dev_fund_pledge: data.dev_fund_pledge,
         created_at: data.created_at,
@@ -438,6 +499,18 @@ export class AuthService {
    * Parse authentication error messages into user-friendly text
    */
   parseError(errorMessage: string): string {
+    if (errorMessage.includes('inactive')) {
+      return errorMessage;
+    }
+    if (errorMessage.includes('Member not found')) {
+      return 'Member profile not found. Please contact admin.';
+    }
+    if (errorMessage.includes('Member email not found')) {
+      return 'Member profile is missing an email. Please contact admin.';
+    }
+    if (errorMessage.includes('Unable to verify member profile')) {
+      return 'Unable to verify member profile right now. Please try again.';
+    }
     if (errorMessage.includes('Invalid login credentials')) {
       return 'Invalid member number/ID or password';
     }
