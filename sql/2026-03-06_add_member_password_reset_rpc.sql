@@ -1,7 +1,7 @@
 -- Adds an RPC that lets admin reset a member password back to the default.
--- The function validates the provided admin password against app_settings.admin_password.
+-- The function validates the provided admin password against app_settings.attendance_admin_password.
 -- If the member doesn't have an auth user, it creates one with the default password.
--- If app_settings.admin_password is not present, it falls back to admin_code,
+-- If app_settings.attendance_admin_password is not present, it falls back to admin_password and admin_code,
 -- and finally to the default code 'admin123'.
 
 CREATE OR REPLACE FUNCTION public.reset_member_password_to_default(
@@ -16,6 +16,7 @@ AS $$
 DECLARE
   configured_admin_code TEXT;
   has_app_settings_table BOOLEAN := false;
+  has_attendance_admin_password_column BOOLEAN := false;
   has_admin_password_column BOOLEAN := false;
   has_admin_code_column BOOLEAN := false;
   default_password TEXT := 'gmct2026';
@@ -37,6 +38,15 @@ BEGIN
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'app_settings'
+        AND column_name = 'attendance_admin_password'
+    )
+    INTO has_attendance_admin_password_column;
+
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'app_settings'
         AND column_name = 'admin_password'
     )
     INTO has_admin_password_column;
@@ -50,7 +60,14 @@ BEGIN
     )
     INTO has_admin_code_column;
 
-    IF has_admin_password_column THEN
+    IF has_attendance_admin_password_column THEN
+      EXECUTE
+        'SELECT COALESCE(NULLIF(TRIM(attendance_admin_password), ''''), NULLIF(TRIM(admin_password), ''''), ''admin123'')
+         FROM public.app_settings
+         WHERE id = ''app_settings''
+         LIMIT 1'
+      INTO configured_admin_code;
+    ELSIF has_admin_password_column THEN
       EXECUTE
         'SELECT COALESCE(NULLIF(TRIM(admin_password), ''''), ''admin123'')
          FROM public.app_settings

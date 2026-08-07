@@ -157,6 +157,7 @@ AS $$
 DECLARE
   configured_admin_code TEXT;
   has_app_settings_table BOOLEAN := false;
+  has_attendance_admin_password_column BOOLEAN := false;
   has_admin_password_column BOOLEAN := false;
   has_admin_code_column BOOLEAN := false;
   default_password TEXT := 'gmct2026';
@@ -180,6 +181,15 @@ BEGIN
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'app_settings'
+        AND column_name = 'attendance_admin_password'
+    )
+    INTO has_attendance_admin_password_column;
+
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'app_settings'
         AND column_name = 'admin_password'
     )
     INTO has_admin_password_column;
@@ -193,7 +203,14 @@ BEGIN
     )
     INTO has_admin_code_column;
 
-    IF has_admin_password_column THEN
+    IF has_attendance_admin_password_column THEN
+      EXECUTE
+        'SELECT COALESCE(NULLIF(TRIM(attendance_admin_password), ''''), NULLIF(TRIM(admin_password), ''''), ''admin123'')
+         FROM public.app_settings
+         WHERE id = ''app_settings''
+         LIMIT 1'
+      INTO configured_admin_code;
+    ELSIF has_admin_password_column THEN
       EXECUTE
         'SELECT COALESCE(NULLIF(TRIM(admin_password), ''''), ''admin123'')
          FROM public.app_settings
@@ -314,6 +331,7 @@ AS $$
 DECLARE
   configured_admin_code TEXT;
   has_app_settings_table BOOLEAN := false;
+  has_attendance_admin_password_column BOOLEAN := false;
   has_admin_password_column BOOLEAN := false;
   has_admin_code_column BOOLEAN := false;
   default_password TEXT := 'gmct2026';
@@ -340,6 +358,15 @@ BEGIN
       FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'app_settings'
+        AND column_name = 'attendance_admin_password'
+    )
+    INTO has_attendance_admin_password_column;
+
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'app_settings'
         AND column_name = 'admin_password'
     )
     INTO has_admin_password_column;
@@ -353,7 +380,14 @@ BEGIN
     )
     INTO has_admin_code_column;
 
-    IF has_admin_password_column THEN
+    IF has_attendance_admin_password_column THEN
+      EXECUTE
+        'SELECT COALESCE(NULLIF(TRIM(attendance_admin_password), ''''), NULLIF(TRIM(admin_password), ''''), ''admin123'')
+         FROM public.app_settings
+         WHERE id = ''app_settings''
+         LIMIT 1'
+      INTO configured_admin_code;
+    ELSIF has_admin_password_column THEN
       EXECUTE
         'SELECT COALESCE(NULLIF(TRIM(admin_password), ''''), ''admin123'')
          FROM public.app_settings

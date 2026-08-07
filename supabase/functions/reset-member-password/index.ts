@@ -31,11 +31,11 @@ serve(async (req) => {
     // Verify admin password
     const { data: settings } = await supabaseAdmin
       .from('app_settings')
-      .select('admin_password')
+      .select('attendance_admin_password, admin_password')
       .eq('id', 'app_settings')
       .single()
 
-    const configuredAdminCode = settings?.admin_password || 'admin123'
+    const configuredAdminCode = settings?.attendance_admin_password || settings?.admin_password || 'admin123'
     
     if (adminCode.toLowerCase().trim() !== configuredAdminCode.toLowerCase().trim()) {
       return new Response(

@@ -430,7 +430,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     try {
       const { error } = await supabase
         .from("app_settings")
-        .update({ admin_password: adminPasswordChange.newPassword })
+        .update({ attendance_admin_password: adminPasswordChange.newPassword })
         .eq("id", "app_settings");
 
       if (error) throw error;

@@ -265,7 +265,7 @@ export default function MemberManagement({ onBack }: MemberManagementProps) {
       } else if (err?.code === '42703' && message.includes('admin_password')) {
         setError('Reset function is using a missing admin_password column. Re-run SQL migration: 2026-03-06_add_member_password_reset_rpc.sql');
       } else if (message.includes('Invalid admin password')) {
-        setError('Invalid admin password for reset. Use the same admin password used to log in as admin. If it still fails, update app_settings.admin_password to match your active admin code.');
+        setError('Invalid admin password for reset. Use the same admin password used to log in as admin. If it still fails, update app_settings.attendance_admin_password to match your active admin code.');
       } else {
         setError(message);
       }

@@ -29,8 +29,8 @@ export default function Login({ onLogin, onMemberLogin }: LoginProps) {
       // Keep admin access on the same sign-in form.
       if (normalizedLoginId.toLowerCase() === 'admin') {
         const settings = await getAppSettings();
-        const dbAdminCode = settings?.admin_password;
-        const envAdminCode = import.meta.env.VITE_ADMIN_CODE || 'admin123';
+        const dbAdminCode = settings?.attendance_admin_password || settings?.admin_password;
+        const envAdminCode = import.meta.env.VITE_ATTENDANCE_ADMIN_CODE || import.meta.env.VITE_ADMIN_CODE || 'admin123';
         const adminCode = dbAdminCode || envAdminCode;
 
         if (password.trim().toLowerCase() === adminCode.toLowerCase()) {
