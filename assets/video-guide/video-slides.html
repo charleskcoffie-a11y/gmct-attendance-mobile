@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GMCT Connect Video Slides</title>
+  <style>
+    :root {
+      --bg-1: #081226;
+      --bg-2: #102a43;
+      --panel: rgba(9, 18, 38, 0.82);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --accent: #22d3ee;
+      --accent-2: #10b981;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: radial-gradient(circle at top, rgba(34, 211, 238, 0.22), transparent 30%),
+                  linear-gradient(180deg, var(--bg-2), var(--bg-1));
+      color: var(--text);
+    }
+
+    .slide {
+      width: 1080px;
+      height: 1920px;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(34, 211, 238, 0.20), transparent 20%),
+        radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.16), transparent 22%),
+        linear-gradient(180deg, #0b1630 0%, #0a1024 100%);
+    }
+
+    .content {
+      padding: 90px 70px 80px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .eyebrow {
+      font-size: 30px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8be9fd;
+      font-weight: 700;
+    }
+
+    h1, h2 {
+      margin: 0;
+      line-height: 1.05;
+      font-weight: 700;
+    }
+
+    h1 { font-size: 86px; }
+    h2 { font-size: 62px; }
+
+    .lead {
+      font-size: 38px;
+      line-height: 1.45;
+      color: var(--muted);
+      max-width: 900px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 36px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    .panel p, .panel li {
+      font-size: 34px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .panel strong {
+      color: var(--text);
+    }
+
+    .two-up {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .shot {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 18px;
+    }
+
+    .shot img {
+      width: 100%;
+      border-radius: 18px;
+      display: block;
+    }
+
+    .caption {
+      margin-top: 12px;
+      font-size: 24px;
+      color: #dbeafe;
+      text-align: center;
+    }
+
+    .steps {
+      margin: 0;
+      padding-left: 30px;
+    }
+
+    .steps li { margin-bottom: 14px; }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .phone-box {
+      border: 1px solid rgba(34, 211, 238, 0.25);
+      background: rgba(15, 23, 42, 0.75);
+      border-radius: 32px;
+      padding: 28px;
+    }
+
+    .phone-box h3 {
+      font-size: 38px;
+      margin: 0 0 14px;
+      color: #ecfeff;
+    }
+
+    .phone-box p {
+      font-size: 30px;
+      line-height: 1.5;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .footer-note {
+      margin-top: auto;
+      font-size: 28px;
+      color: #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+  <section class="slide" data-slide="1">
+    <div class="content">
+      <div class="eyebrow">GMCT Connect</div>
+      <h1>How To Start Using The App</h1>
+      <p class="lead">A short mobile guide for sign in, password change, contributions view, and adding the app to your home screen.</p>
+      <div class="panel">
+        <p><strong>Important:</strong> Every member has a class number, and that class number is your ID for signing in. The church admin must add the account first.</p>
+        <p><strong>Example username / ID:</strong> 121</p>
+        <p><strong>First-time password:</strong> gmct2026</p>
+      </div>
+      <p class="footer-note">Follow the next slides step by step.</p>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <div class="content">
+      <div class="eyebrow">Step 1</div>
+      <h2>Open The App And Sign In</h2>
+      <div class="two-up">
+        <div class="shot">
+          <img src="login-screen.png" alt="Login screen" />
+          <div class="caption">Login screen</div>
+        </div>
+        <div class="shot">
+          <img src="login-example.png" alt="Login example" />
+          <div class="caption">Example with member number and password</div>
+        </div>
+      </div>
+      <div class="panel">
+        <ol class="steps">
+          <li>Enter your <strong>member number or ID</strong>.</li>
+          <li>Enter <strong>gmct2026</strong> as your first password.</li>
+          <li>Tap <strong>Sign In</strong>.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <div class="content">
+      <div class="eyebrow">Step 2</div>
+      <h2>Change Your Password</h2>
+      <div class="split">
+        <div class="shot">
+          <img src="change-password-screen.png" alt="Password change screen" />
+          <div class="caption">First login password change</div>
+        </div>
+        <div class="panel">
+          <ol class="steps">
+            <li>Type your new password.</li>
+            <li>Type it again to confirm.</li>
+            <li>Your new password must be at least <strong>6 characters</strong>.</li>
+            <li>Tap <strong>Update Password</strong>.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="4">
+    <div class="content">
+      <div class="eyebrow">Step 3</div>
+      <h2>View Your Member Page</h2>
+      <div class="shot panel">
+        <img src="member-portal-demo.png" alt="Member portal" />
+        <div class="caption">Representative member portal screen</div>
+      </div>
+      <div class="panel">
+        <p>After sign in, this is where members can see their details. Some users may also see class leader options such as <strong>Mark Attendance</strong>, <strong>View Records</strong>, and <strong>Reports</strong>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="5">
+    <div class="content">
+      <div class="eyebrow">Step 4</div>
+      <h2>See Your Contributions</h2>
+      <div class="shot panel">
+        <img src="contributions-dashboard.png" alt="Contributions dashboard" />
+        <div class="caption">This is where contributions appear</div>
+      </div>
+      <div class="panel">
+        <p>Tap <strong>View Contributions Dashboard</strong> from your member page to open this section and see your contribution summary and records.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <div class="content">
+      <div class="eyebrow">Step 5</div>
+      <h2>Add The App To Your Home Screen</h2>
+      <div class="two-up">
+        <div class="phone-box">
+          <h3>iPhone</h3>
+          <p>Open the app in Safari. Tap <strong>Share</strong>. Then tap <strong>Add to Home Screen</strong>.</p>
+        </div>
+        <div class="phone-box">
+          <h3>Android</h3>
+          <p>Open the app in Chrome. Tap the <strong>three dots</strong>. Then tap <strong>Add to Home Screen</strong>.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <p>If you cannot sign in, please contact the church admin for help.</p>
+      </div>
+      <p class="footer-note">GMCT Connect is ready to use on your phone.</p>
+    </div>
+  </section>
+</body>
+</html>
