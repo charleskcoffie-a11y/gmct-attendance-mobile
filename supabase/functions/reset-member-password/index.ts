@@ -60,10 +60,30 @@ serve(async (req) => {
 
     const defaultPassword = 'gmct2026'
 
-    // Use Supabase Admin API to update user password
-    const { data: authUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      memberId,
-      { password: defaultPassword }
+    // Older accounts may have an Auth UUID different from members.id. Resolve
+    // the account by the email that the member login flow uses.
+    const { data: authUsers, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers()
+    if (listUsersError) {
+      return new Response(
+        JSON.stringify({ error: listUsersError.message }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
+
+    const authUser = authUsers.users.find((user) =>
+      user.id === memberId || user.email?.trim().toLowerCase() === member.email.trim().toLowerCase()
+    )
+
+    if (!authUser) {
+      return new Response(
+        JSON.stringify({ error: 'Member auth account not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      )
+    }
+
+    const { data: updatedAuthUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      authUser.id,
+      { password: defaultPassword, user_metadata: { password_changed: false } }
     )
 
     if (updateError) {
@@ -73,21 +93,13 @@ serve(async (req) => {
       )
     }
 
-    // Update member metadata to indicate password was reset
-    await supabaseAdmin.auth.admin.updateUserById(
-      memberId,
-      { 
-        user_metadata: { password_changed: false },
-        email_confirm: true
-      }
-    )
-
     return new Response(
       JSON.stringify({
         success: true,
         member_id: member.id,
         member_name: member.name,
         email: member.email,
+        auth_user_id: updatedAuthUser.user.id,
         default_password: defaultPassword
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
