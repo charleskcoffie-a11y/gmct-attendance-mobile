@@ -877,72 +877,33 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
             </p>
           </div>
           {monthlyComparisonGraph.labels.length > 0 && monthlyComparisonGraph.series.length > 0 ? (
-            <div className="overflow-x-auto">
-              {(() => {
-                const width = Math.max(720, monthlyComparisonGraph.labels.length * 70);
-                const height = 260;
-                const left = 42;
-                const right = 16;
-                const top = 16;
-                const bottom = 34;
-                const plotWidth = width - left - right;
-                const plotHeight = height - top - bottom;
-                const maxY = monthlyComparisonGraph.maxValue;
-                const xStep = monthlyComparisonGraph.labels.length > 1 ? plotWidth / (monthlyComparisonGraph.labels.length - 1) : 0;
-                const yFor = (value: number) => top + plotHeight - (value / maxY) * plotHeight;
+            <div className="space-y-2" role="list" aria-label="Attendance comparison by class">
+              {[...monthlyComparisonGraph.series]
+                .sort((a, b) => b.total - a.total || Number(a.classNumber) - Number(b.classNumber))
+                .map((series) => {
+                  const activePoints = series.points.filter((value) => value > 0);
+                  const average = activePoints.length > 0 ? series.total / activePoints.length : 0;
+                  const width = monthlyComparisonGraph.maxValue > 0
+                    ? (series.total / (monthlyComparisonGraph.maxValue * monthlyComparisonGraph.labels.length)) * 100
+                    : 0;
 
-                return (
-                  <svg width={width} height={height} className="min-w-full">
-                    {[0, 1, 2, 3, 4].map((tick) => {
-                      const value = Math.round((maxY / 4) * (4 - tick));
-                      const y = top + (plotHeight / 4) * tick;
-                      return (
-                        <g key={`grid-${tick}`}>
-                          <line x1={left} y1={y} x2={left + plotWidth} y2={y} stroke="#334155" strokeWidth="1" />
-                          <text x={left - 6} y={y + 4} fill="#94a3b8" fontSize="10" textAnchor="end">
-                            {value}
-                          </text>
-                        </g>
-                      );
-                    })}
-
-                    {monthlyComparisonGraph.series.map((series, seriesIndex) => {
-                      const lineOffsetX = ((seriesIndex % 7) - 3) * 0.6;
-                      const points = series.points.map((value, idx) => `${left + idx * xStep + lineOffsetX},${yFor(value)}`).join(" ");
-                      return (
-                        <g key={`series-${series.classNumber}`}>
-                          <polyline fill="none" stroke={series.color} strokeOpacity="0.9" strokeWidth="2" points={points} />
-                          {series.points.map((value, idx) => (
-                            <circle
-                              key={`pt-${series.classNumber}-${idx}`}
-                              cx={left + idx * xStep + lineOffsetX}
-                              cy={yFor(value)}
-                              r="2.5"
-                              fill={series.color}
-                            />
-                          ))}
-                        </g>
-                      );
-                    })}
-
-                    {monthlyComparisonGraph.labels.map((label, idx) => {
-                      const day = label.split("-")[2] || label;
-                      return (
-                        <text
-                          key={`x-${label}`}
-                          x={left + idx * xStep}
-                          y={height - 10}
-                          fill="#94a3b8"
-                          fontSize="10"
-                          textAnchor="middle"
+                  return (
+                    <div key={`bar-${series.classNumber}`} role="listitem" className="grid grid-cols-[5.5rem_1fr_auto] items-center gap-2 text-xs">
+                      <span className="font-semibold text-slate-200">Class {series.classNumber}</span>
+                      <div className="h-7 overflow-hidden rounded-md bg-slate-800" title={`${series.total} total`}>
+                        <div
+                          className="flex h-full min-w-1 items-center rounded-md px-2 font-bold text-slate-950 transition-all"
+                          style={{ width: `${Math.max(series.total > 0 ? 3 : 0, width)}%`, backgroundColor: series.color }}
                         >
-                          {day}
-                        </text>
-                      );
-                    })}
-                  </svg>
-                );
-              })()}
+                          {series.total > 0 && <span>{series.total}</span>}
+                        </div>
+                      </div>
+                      <span className="whitespace-nowrap text-right text-slate-400">
+                        Avg {average.toFixed(graphMetric === "sessions" ? 0 : 1)}
+                      </span>
+                    </div>
+                  );
+                })}
             </div>
           ) : (
             <p className="text-xs text-slate-400">No monthly graph data for selected year/month/filter.</p>
