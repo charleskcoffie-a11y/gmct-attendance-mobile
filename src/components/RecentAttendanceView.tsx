@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
+import { Download, FileText } from "lucide-react";
 
 interface RecentAttendanceViewProps {
   classNumber: number;
@@ -87,7 +88,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     maxValue: 0,
   });
   const [graphMode, setGraphMode] = useState<GraphMode>("monthly");
-  const [graphMetric, setGraphMetric] = useState<GraphMetric>("sessions");
+  const [graphMetric, setGraphMetric] = useState<GraphMetric>("present");
   const loadDatesRequestIdRef = useRef(0);
   const loadWeekRequestIdRef = useRef(0);
   const isAdminView = classNumber === 0;
@@ -176,7 +177,7 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
   useEffect(() => {
     if (recentSelectedWeek) loadRecentAttendanceForWeek();
-  }, [recentSelectedWeek, recentAttendanceFilter, classNumber, recentSelectedClass, recentAvailableWeeks]);
+  }, [recentSelectedWeek, recentAttendanceFilter, classNumber, recentSelectedClass, recentAvailableWeeks, graphMode, recentSelectedMonth, recentSelectedYear]);
 
   useEffect(() => {
     if (graphMode === "ytd") {
@@ -371,6 +372,102 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
     }
   };
 
+  const handleGenerateMonthlyReport = () => {
+    if (!recentSelectedMonth || monthlyComparisonGraph.series.length === 0) {
+      return;
+    }
+
+    const escapeCsvValue = (value: string | number) => {
+      const text = String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+
+    const headers = [
+      "Month",
+      "Class",
+      "Service Type",
+      "Week",
+      "Metric",
+      ...monthlyComparisonGraph.labels,
+      "Total",
+      "Average"
+    ];
+    const rows = monthlyComparisonGraph.series.map((series) => {
+      const activePoints = series.points.filter((value) => value > 0);
+      const average = activePoints.length > 0 ? series.total / activePoints.length : 0;
+      return [
+        formatMonth(recentSelectedMonth),
+        `Class ${series.classNumber}`,
+        recentAttendanceFilter === "total" ? "Total" : recentAttendanceFilter,
+        activeWeek?.label || "All weeks",
+        graphMetric === "sessions" ? "Records Submitted" : "Present",
+        ...series.points,
+        series.total,
+        average.toFixed(graphMetric === "sessions" ? 0 : 1)
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsvValue).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `attendance-report-${recentSelectedMonth}-${graphMode}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintMonthlyReport = () => {
+    if (!recentSelectedMonth || monthlyComparisonGraph.series.length === 0) {
+      return;
+    }
+
+    const escapeHtml = (value: string | number) =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const reportWindow = window.open("", "_blank");
+
+    if (!reportWindow) {
+      return;
+    }
+
+    const filterSummary = [
+      `Month: ${formatMonth(recentSelectedMonth)}`,
+      `Service: ${recentAttendanceFilter === "total" ? "Total" : recentAttendanceFilter}`,
+      `Class: ${recentSelectedClass ? `Class ${recentSelectedClass}` : "All classes"}`,
+      `Week: ${activeWeek?.label || "All weeks"}`,
+      `Metric: ${graphMetric === "sessions" ? "Records submitted" : "Members present"}`
+    ];
+    const maxBarValue = Math.max(...monthlyComparisonGraph.series.map((series) => series.total), 1);
+    const graphRows = monthlyComparisonGraph.series
+      .map((series) => {
+        const width = Math.max(series.total > 0 ? 3 : 0, (series.total / maxBarValue) * 100);
+        return `<div class="graph-row"><strong>Class ${escapeHtml(series.classNumber)}</strong><div class="bar-track"><div class="bar" style="width:${width}%;background:${escapeHtml(series.color)}">${series.total > 0 ? escapeHtml(series.total) : ""}</div></div><span>${escapeHtml(series.total)}</span></div>`;
+      })
+      .join("");
+    const attendanceRows = isAdminView
+      ? classAttendanceSummary
+          .map((item) => `<tr><td>Class ${escapeHtml(item.classNumber)}</td><td>${item.sessionsCount}</td><td>${item.presentCount}</td><td>${item.absentCount}</td><td>${(item.presentCount / Math.max(item.sessionsCount, 1)).toFixed(1)}</td></tr>`)
+          .join("")
+      : `<tr><td>${recentSelectedClass ? `Class ${escapeHtml(recentSelectedClass)}` : "Selected class"}</td><td>${recentSessionCount}</td><td>${recentAttendanceCount}</td><td>${recentAbsentCount}</td><td>${(recentAttendanceCount / Math.max(recentSessionCount, 1)).toFixed(1)}</td></tr>`;
+
+    reportWindow.document.write(`<!doctype html><html><head><title>Attendance Report - ${escapeHtml(formatMonth(recentSelectedMonth))}</title><style>
+      body{font-family:Arial,sans-serif;color:#172033;margin:36px;line-height:1.4}h1{margin:0 0 6px;font-size:24px}h2{margin:26px 0 10px;font-size:16px;border-bottom:2px solid #dbe3ef;padding-bottom:6px}.meta{color:#526174;font-size:12px;margin-bottom:18px}.meta span{display:inline-block;margin:0 18px 6px 0}.graph{border:1px solid #dbe3ef;border-radius:8px;padding:14px}.graph-row{display:grid;grid-template-columns:70px 1fr 42px;align-items:center;gap:10px;margin:9px 0;font-size:12px}.bar-track{height:22px;background:#edf1f6;border:1px solid #b8c5d6;border-radius:4px;overflow:hidden}.bar{height:100%;border:1px solid #172033;border-radius:4px;padding-left:7px;box-sizing:border-box;font-weight:bold;line-height:20px;color:#172033}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;border-bottom:1px solid #dbe3ef;padding:8px}th{background:#f3f6fa}@media print{body{margin:18mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.graph{break-inside:avoid}h2{break-after:avoid}}
+    </style></head><body><h1>Attendance Report</h1><div class="meta">${filterSummary.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div><h2>Attendance Graph</h2><div class="graph">${graphRows}</div><h2>Attendance Summary</h2><table><thead><tr><th>Class</th><th>Records Submitted</th><th>Present</th><th>Absent</th><th>Average Present</th></tr></thead><tbody>${attendanceRows}</tbody></table></body></html>`);
+    reportWindow.document.close();
+    setTimeout(() => {
+      reportWindow.focus();
+      reportWindow.print();
+    }, 300);
+  };
+
 
   const loadRecentAttendanceDates = async () => {
     const requestId = ++loadDatesRequestIdRef.current;
@@ -552,8 +649,9 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
       const monthEnd = recentSelectedMonth
         ? `${recentSelectedMonth}-${String(new Date(Date.UTC(Number(recentSelectedMonth.split("-")[0]), Number(recentSelectedMonth.split("-")[1]), 0)).getUTCDate()).padStart(2, "0")}`
         : selectedWeekObj.endDate;
-      const rangeStart = selectedWeekObj.startDate < monthStart ? monthStart : selectedWeekObj.startDate;
-      const rangeEnd = selectedWeekObj.endDate > monthEnd ? monthEnd : selectedWeekObj.endDate;
+      const ytdYear = recentSelectedYear || recentSelectedMonth?.split("-")[0];
+      const rangeStart = graphMode === "ytd" && ytdYear ? `${ytdYear}-01-01` : (selectedWeekObj.startDate < monthStart ? monthStart : selectedWeekObj.startDate);
+      const rangeEnd = graphMode === "ytd" && ytdYear ? monthEnd : (selectedWeekObj.endDate > monthEnd ? monthEnd : selectedWeekObj.endDate);
 
       console.log("Querying week range:", rangeStart, rangeEnd);
       query = query
@@ -865,6 +963,26 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
                     Present
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateMonthlyReport}
+                  disabled={!recentSelectedMonth || monthlyComparisonGraph.series.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Download the current dashboard data as a CSV report"
+                >
+                  <Download size={14} aria-hidden="true" />
+                  Generate Monthly Report
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintMonthlyReport}
+                  disabled={!recentSelectedMonth || monthlyComparisonGraph.series.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Open a print-ready report that can be saved as a PDF"
+                >
+                  <FileText size={14} aria-hidden="true" />
+                  Print / Save PDF
+                </button>
               </div>
             </div>
             <p className="text-[11px] text-slate-400">
@@ -927,7 +1045,9 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
         {/* Display attendance count or class summary */}
         {isAdminView ? (
           <div className="mt-4">
-            <h3 className="text-sm font-bold text-white mb-2">All Classes Attendance (Selected Period)</h3>
+            <h3 className="text-sm font-bold text-white mb-2">
+              {graphMode === "ytd" ? "All Classes Attendance (Year to Date)" : "All Classes Attendance (Selected Week)"}
+            </h3>
             <div className="bg-slate-900/70 rounded-lg border border-slate-700 overflow-hidden">
               {classAttendanceSummary.length > 0 ? (
                 <div className="space-y-1">
