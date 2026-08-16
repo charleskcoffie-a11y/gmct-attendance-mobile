@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getAppSettings } from '../supabase';
 import { authService } from '../services/authService';
 import { Member } from '../types';
+import InstallApp from './InstallApp';
 
 interface LoginProps {
   onLogin: (classNumber: number, accessCode: string) => void;
@@ -157,8 +158,7 @@ export default function Login({ onLogin, onMemberLogin }: LoginProps) {
             </form>
 
             <div className="mt-6 text-center text-sm text-slate-300">
-              <p className="font-semibold">📱 Install for offline use</p>
-              <p className="text-xs mt-1">Tap Share → Add to Home Screen</p>
+              <InstallApp />
               <p className="text-xs mt-2">Contact your administrator for login credentials</p>
             </div>
           </div>
