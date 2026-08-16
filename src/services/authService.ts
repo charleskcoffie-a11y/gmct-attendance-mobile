@@ -11,37 +11,29 @@ interface ClassLeaderMapping {
   classLeaderName?: string;
 }
 
+interface MemberAuthRow {
+  id: string;
+  email?: string | null;
+  member_number?: string | number | null;
+  class_number?: string | number | null;
+  active?: boolean | null;
+  created_at?: string | null;
+}
+
+interface MemberInfoRow extends MemberAuthRow {
+  name: string;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  date_of_birth?: string | null;
+  dob_month?: number | null;
+  dob_day?: number | null;
+  day_born?: string | null;
+  dev_fund_pledge?: boolean | null;
+}
+
 export class AuthService {
-  private async resolveLoginEmail(loginIdentifier: string): Promise<string> {
-    const normalizedIdentifier = loginIdentifier.trim().toLowerCase();
-    if (!normalizedIdentifier) {
-      return '';
-    }
-
-    if (normalizedIdentifier.includes('@')) {
-      return normalizedIdentifier;
-    }
-
-    const { data, error } = await supabase
-      .from('members')
-      .select('email, class_number, member_number')
-      .or(
-        [
-          `member_number.ilike.${normalizedIdentifier}`,
-          `class_number.ilike.${normalizedIdentifier}`,
-          `email.ilike.${normalizedIdentifier}@gmct.member`,
-        ].join(',')
-      )
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('Unable to resolve login identifier from members table:', error);
-    }
-
-    return data?.email?.trim().toLowerCase() || this.classNumberToEmail(normalizedIdentifier);
-  }
-
   /**
    * Sign in with class number and password
    * Converts classNumber to internal email format: {classNumber}@gmct.member
@@ -52,7 +44,7 @@ export class AuthService {
       const normalizedIdentifier = classNumber.trim().toLowerCase();
 
       // Resolve candidate member rows so duplicate member numbers do not break login.
-      const { data: memberRows, error: memberError } = await supabase
+      const { data: rawMemberRows, error: memberError } = await supabase
         .from('members')
         .select('id, email, member_number, class_number, active, created_at')
         .or(
@@ -64,6 +56,7 @@ export class AuthService {
         )
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(20);
+      const memberRows = (rawMemberRows || []) as MemberAuthRow[];
 
       if (memberError) {
         throw new Error('Unable to verify member profile right now');
@@ -95,7 +88,9 @@ export class AuthService {
 
       const email =
         memberData.email?.trim().toLowerCase() ||
-        this.classNumberToEmail(memberData.member_number || memberData.class_number || normalizedIdentifier);
+        this.classNumberToEmail(
+          String(memberData.member_number || memberData.class_number || normalizedIdentifier)
+        );
 
       if (!email) {
         throw new Error('Member email not found');
@@ -308,12 +303,13 @@ export class AuthService {
 
       if (!user?.email) return null;
 
-      const { data: memberRows, error } = await supabase
+      const { data: rawMemberRows, error } = await supabase
         .from('members')
         .select('id, name, email, class_number, member_number, phone, address, city, province, date_of_birth, dob_month, dob_day, day_born, active, dev_fund_pledge, created_at')
         .or(`id.eq.${user.id},email.ilike.${user.email}`)
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(20);
+      const memberRows = (rawMemberRows || []) as MemberInfoRow[];
 
       if (error) {
         console.error('Error fetching member info:', error);
@@ -333,24 +329,24 @@ export class AuthService {
       const member: Member = {
         id: data.id,
         name: data.name,
-        email: data.email,
-        class_number: data.class_number,
-        member_number: data.member_number,
+        email: data.email ?? undefined,
+        class_number: data.class_number == null ? undefined : String(data.class_number),
+        member_number: data.member_number == null ? undefined : String(data.member_number),
         assignedClass: leaderMapping.classNumber,
         classLeaderId: leaderMapping.classLeaderId,
         classLeaderName: leaderMapping.classLeaderName,
-        phone: data.phone,
-        address: data.address,
-        city: data.city,
-        province: data.province,
-        date_of_birth: data.date_of_birth,
-        dob_month: data.dob_month,
-        dob_day: data.dob_day,
-        day_born: data.day_born,
-        active: data.active,
-        is_active: data.active,
-        dev_fund_pledge: data.dev_fund_pledge,
-        created_at: data.created_at,
+        phone: data.phone ?? undefined,
+        address: data.address ?? undefined,
+        city: data.city ?? undefined,
+        province: data.province ?? undefined,
+        date_of_birth: data.date_of_birth ?? undefined,
+        dob_month: data.dob_month ?? undefined,
+        dob_day: data.dob_day ?? undefined,
+        day_born: data.day_born ?? undefined,
+        active: data.active ?? undefined,
+        is_active: data.active ?? undefined,
+        dev_fund_pledge: data.dev_fund_pledge ?? undefined,
+        created_at: data.created_at ?? undefined,
       };
 
       return member;
