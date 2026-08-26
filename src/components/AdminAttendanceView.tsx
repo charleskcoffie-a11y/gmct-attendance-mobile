@@ -53,15 +53,13 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
       const classes: ClassAttendance[] = [];
       for (let i = 1; i <= max; i++) {
         const members = await getClassMembers(i);
-        if (members && members.length > 0) {
-          classes.push({
-            classNumber: i,
-            members: (members as Member[]).map((m) => ({
-              ...m,
-              attendanceStatus: "absent" as const,
-            })),
-          });
-        }
+        classes.push({
+          classNumber: i,
+          members: (members as Member[]).map((m) => ({
+            ...m,
+            attendanceStatus: "absent" as const,
+          })),
+        });
       }
       setClassesData(classes);
       if (classes.length > 0) {
@@ -269,7 +267,7 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
           <div className="text-center py-8 text-slate-400">Loading all classes...</div>
         ) : classesData.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
-            No members found in any class
+            No classes configured
           </div>
         ) : (
           <div className="space-y-3 mb-6">
@@ -317,7 +315,11 @@ export const AdminAttendanceView: React.FC<AdminAttendanceViewProps> = ({
                 {/* Expanded Members List */}
                 {expandedClass === classData.classNumber && (
                   <div className="border-t border-slate-700 px-4 py-3 space-y-2">
-                    {classData.members.map((member) => (
+                    {classData.members.length === 0 ? (
+                      <div className="p-3 bg-slate-800/60 rounded-lg text-sm text-slate-400">
+                        No active members in this class
+                      </div>
+                    ) : classData.members.map((member) => (
                       <div
                         key={member.id}
                         className="flex items-center justify-between p-3 bg-slate-800/60 rounded-lg"

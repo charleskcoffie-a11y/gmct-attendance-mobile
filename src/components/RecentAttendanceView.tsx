@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { supabase } from "../supabase";
+import { getAppSettings, supabase } from "../supabase";
 import { Download, FileText } from "lucide-react";
 
 interface RecentAttendanceViewProps {
@@ -492,9 +492,15 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
       const rows = (data || []) as AttendanceRow[];
 
-      if (rows.length > 0) {
-        // Get available classes
-        const availableClasses = [...new Set(rows.map(r => String(r.class_number)))].sort();
+      if (rows.length > 0 || isAdminView) {
+        const settings = isAdminView ? await getAppSettings() : null;
+        const maxClasses = typeof settings?.max_classes === "number" ? settings.max_classes : 10;
+        const configuredClasses = isAdminView
+          ? Array.from({ length: maxClasses }, (_, i) => String(i + 1))
+          : [];
+
+        const availableClasses = [...new Set([...configuredClasses, ...rows.map(r => String(r.class_number))])]
+          .sort((a, b) => Number(a) - Number(b));
         console.log("Available classes:", availableClasses);
         setRecentAvailableClasses(availableClasses);
 
@@ -720,8 +726,16 @@ export const RecentAttendanceView: React.FC<RecentAttendanceViewProps> = ({ clas
 
       if (isAdminView) {
         // Admin view: show summary for all classes
-        if (rows.length > 0) {
+        if (rows.length > 0 || recentAvailableClasses.length > 0) {
           const summaryMap = new Map<number, { presentCount: number; absentCount: number; sessionsCount: number }>();
+
+          recentAvailableClasses.forEach((classKey) => {
+            const parsedClassNumber = Number(classKey);
+            if (Number.isFinite(parsedClassNumber)) {
+              summaryMap.set(parsedClassNumber, { presentCount: 0, absentCount: 0, sessionsCount: 0 });
+            }
+          });
+
           rows.forEach(record => {
             const classNum = record.class_number;
             const classNumber = typeof classNum === "string" ? parseInt(classNum, 10) : classNum;
