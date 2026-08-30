@@ -119,6 +119,7 @@ export default function MemberContributions({ member, onMemberUpdated }: MemberC
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [contributionLoading, setContributionLoading] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showContributionTrend, setShowContributionTrend] = useState(false);
   const [showRecentContributions, setShowRecentContributions] = useState(false);
   const [showProfileFields, setShowProfileFields] = useState(false);
   const [showPasswordFields, setShowPasswordFields] = useState(false);
@@ -422,12 +423,22 @@ export default function MemberContributions({ member, onMemberUpdated }: MemberC
         </div>
 
         <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3 md:p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
+          <button
+            type="button"
+            onClick={() => setShowContributionTrend(!showContributionTrend)}
+            aria-expanded={showContributionTrend}
+            className="mb-3 flex w-full items-center justify-between text-sm font-semibold text-slate-100 transition hover:text-white"
+          >
+            <span className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-cyan-300" />
-            Contribution Trend (Monthly)
-          </h3>
+              Contribution Trend (Monthly)
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${showContributionTrend ? 'rotate-180' : ''}`}
+            />
+          </button>
 
-          {monthlyTotals.length === 0 ? (
+          {showContributionTrend && (monthlyTotals.length === 0 ? (
             <p className="text-sm text-slate-400">No contribution data available yet.</p>
           ) : (
             <div className="space-y-4">
@@ -507,7 +518,7 @@ export default function MemberContributions({ member, onMemberUpdated }: MemberC
                 </div>
               )}
             </div>
-          )}
+          ))}
         </div>
 
         <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/70 p-4">
