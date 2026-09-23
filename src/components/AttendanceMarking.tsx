@@ -1,12 +1,13 @@
 ﻿import React, { useState, useEffect } from "react";
 import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService, checkWeeklyAttendance } from "../supabase";
 import { Member, ServiceType } from "../types";
-import { Calendar, Plus, WifiOff, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
+import { BarChart3, Calendar, Plus, WifiOff, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
 import { MemberAttendanceRow } from "./MemberAttendanceRow";
 
 interface AttendanceMarkingProps {
   classNumber: number;
   onBackToClasses?: () => void;
+  onViewReports?: () => void;
   isAdminView?: boolean;
   includeMemberEmail?: string;
   initialDate?: string;
@@ -40,6 +41,7 @@ interface MemberFormData {
 export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   classNumber,
   onBackToClasses,
+  onViewReports,
   isAdminView,
   includeMemberEmail,
   initialDate,
@@ -687,14 +689,27 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
               </div>
             </div>
             
-            {/* Back button only if admin */}
-            {onBackToClasses && (
-              <button
-                onClick={onBackToClasses}
-                className="w-full px-4 py-2 bg-slate-700/50 hover:bg-slate-600 text-white rounded-lg font-medium transition-all text-sm"
-              >
-                ← Back to Classes
-              </button>
+            {/* Admin navigation */}
+            {(onBackToClasses || onViewReports) && (
+              <div className="grid grid-cols-2 gap-2">
+                {onBackToClasses && (
+                  <button
+                    onClick={onBackToClasses}
+                    className="w-full px-3 py-2 bg-slate-700/50 hover:bg-slate-600 text-white rounded-lg font-medium transition-all text-sm"
+                  >
+                    ← Classes
+                  </button>
+                )}
+                {onViewReports && (
+                  <button
+                    onClick={onViewReports}
+                    className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-all text-sm flex items-center justify-center gap-2"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    Reports
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

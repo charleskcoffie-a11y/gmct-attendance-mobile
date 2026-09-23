@@ -1349,15 +1349,15 @@ export async function getMemberAttendanceHistory(
       status,
       attendance_id,
       created_at,
-      attendance:attendance_id(
+      attendance:attendance_id!inner(
         attendance_date,
         service_type
       )
     `)
     .eq('member_id', memberId)
     .eq('class_number', classNumber.toString())
-    .gte('created_at', `${startDate}T00:00:00`)
-    .lte('created_at', `${endDate}T23:59:59`)
+    .gte('attendance.attendance_date', startDate)
+    .lte('attendance.attendance_date', endDate)
     .order('created_at', { ascending: false });
 
   const { data, error } = await query;
@@ -1367,11 +1367,45 @@ export async function getMemberAttendanceHistory(
     return [];
   }
 
-  // Filter by service type if specified
-  if (serviceType && data) {
-    return data.filter((record: any) => 
-      record.attendance?.service_type === serviceType
-    );
+  const normalizedRecords = (data || []).map((record: any) => ({
+    ...record,
+    attendance: Array.isArray(record.attendance) ? record.attendance[0] : record.attendance
+  }));
+
+  // Filter by service type if specified after normalizing the joined record.
+  if (serviceType) {
+    return normalizedRecords.filter((record: any) => record.attendance?.service_type === serviceType);
+  }
+
+  return normalizedRecords;
+}
+
+// Get all member attendance statuses for a class and date range.
+export async function getClassMemberAttendanceRange(
+  classNumber: number,
+  startDate: string,
+  endDate: string
+) {
+  const { data, error } = await supabase
+    .from('member_attendance')
+    .select(`
+      member_id,
+      member_name,
+      status,
+      absence_reason,
+      attendance:attendance_id!inner(
+        attendance_date,
+        service_type
+      )
+    `)
+    .eq('class_number', classNumber.toString())
+    .gte('attendance.attendance_date', startDate)
+    .lte('attendance.attendance_date', endDate)
+    .order('member_name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching class member attendance range:', error);
+    throw error;
   }
 
   return data || [];

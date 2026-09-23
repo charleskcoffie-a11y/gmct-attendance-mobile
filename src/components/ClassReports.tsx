@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   confirmClassReport,
   getAppSettings,
@@ -9,7 +11,8 @@ import {
   getManualReports,
   deleteManualReport,
   getMemberAttendanceHistory,
-  getMemberAttendanceSummary
+  getMemberAttendanceSummary,
+  getClassMemberAttendanceRange
 } from "../supabase";
 import { Member, ServiceType, ManualReport } from "../types";
 import { AlertCircle, CheckCircle, Trash2, TrendingUp, Users, Calendar, BarChart3, Send, Download, User } from "lucide-react";
@@ -36,6 +39,17 @@ interface QuarterlyReportSummary {
   generatedAt: string;
 }
 
+interface QuarterlyMemberSummary {
+  memberId: string;
+  name: string;
+  present: number;
+  absent: number;
+  sick: number;
+  travel: number;
+  consecutiveAbsentWeeks: number;
+  needsFollowUp: boolean;
+}
+
 export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack }) => {
   const [activeTab, setActiveTab] = useState<"monthly" | "quarterly" | "manual" | "members">("monthly");
   const [monthKey, setMonthKey] = useState(() => new Date().toISOString().slice(0, 7));
@@ -53,6 +67,7 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   const [success, setSuccess] = useState<string | null>(null);
   const [quarterlyReportData, setQuarterlyReportData] = useState<QuarterlyReportSummary | null>(null);
   const [showQuarterlyReport, setShowQuarterlyReport] = useState(false);
+  const [quarterlyMemberSummary, setQuarterlyMemberSummary] = useState<QuarterlyMemberSummary[]>([]);
 
   // Manual report states
   const [manualDateStart, setManualDateStart] = useState(() => {
@@ -76,6 +91,115 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
   const [memberEndDate, setMemberEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [memberAttendanceHistory, setMemberAttendanceHistory] = useState<any[]>([]);
   const [memberSummary, setMemberSummary] = useState<any>(null);
+  const [memberReportGeneratedAt, setMemberReportGeneratedAt] = useState<string | null>(null);
+
+  const createPdf = (title: string, subtitle: string) => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(title, 32, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(90, 105, 125);
+    doc.text(subtitle, 32, 56);
+    doc.setTextColor(30, 40, 55);
+    return doc;
+  };
+
+  const addBarChart = (doc: jsPDF, title: string, bars: Array<{ label: string; value: number; color: [number, number, number] }>, startY: number) => {
+    const maxValue = Math.max(1, ...bars.map((bar) => bar.value));
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, 32, startY);
+    bars.forEach((bar, index) => {
+      const y = startY + 16 + index * 23;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(bar.label, 32, y + 9);
+      doc.setFillColor(232, 237, 244);
+      doc.roundedRect(118, y, 330, 12, 3, 3, 'F');
+      doc.setFillColor(...bar.color);
+      doc.roundedRect(118, y, Math.max(bar.value ? 4 : 0, (bar.value / maxValue) * 330), 12, 3, 3, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(bar.value), 458, y + 9);
+    });
+    return startY + 28 + bars.length * 23;
+  };
+
+  const savePdf = (doc: jsPDF, title: string) => {
+    doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`);
+  };
+
+  const downloadQuarterlyPdf = () => {
+    if (!quarterlyReportData) return;
+    const title = `Class ${classNumber} Quarterly Report`;
+    const doc = createPdf(title, `${quarterlyReportData.periodKey} | ${quarterlyReportData.dateRange.start} to ${quarterlyReportData.dateRange.end}`);
+    let y = addBarChart(doc, 'Quarter totals', [
+      { label: 'Present', value: quarterlyReportData.totals.present, color: [59, 130, 246] },
+      { label: 'Absent', value: quarterlyReportData.totals.absent, color: [249, 115, 22] }
+    ], 82);
+    y = addBarChart(doc, 'Weekly average attendance', attendanceAverages.weekly.flatMap((item) => [
+      { label: `${item.period.slice(5)} Present`, value: item.present, color: [59, 130, 246] as [number, number, number] },
+      { label: `${item.period.slice(5)} Absent`, value: item.absent, color: [249, 115, 22] as [number, number, number] }
+    ]), y + 14);
+    y = addBarChart(doc, 'Monthly average attendance', attendanceAverages.monthly.flatMap((item) => [
+      { label: `${item.period} Present`, value: item.present, color: [59, 130, 246] as [number, number, number] },
+      { label: `${item.period} Absent`, value: item.absent, color: [249, 115, 22] as [number, number, number] }
+    ]), y + 14);
+    autoTable(doc, {
+      startY: y + 10,
+      head: [['Member', 'Present', 'Absent', 'Sick', 'Travel', 'Longest absent streak']],
+      body: quarterlyMemberSummary.map((member) => [member.needsFollowUp ? `${member.name} - FOLLOW UP` : member.name, member.present, member.absent, member.sick, member.travel, `${member.consecutiveAbsentWeeks} weeks`]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 64, 175] },
+      styles: { fontSize: 8, cellPadding: 5 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && quarterlyMemberSummary[data.row.index]?.needsFollowUp) {
+          data.cell.styles.fillColor = [255, 237, 213];
+          data.cell.styles.textColor = [154, 52, 18];
+          if (data.column.index === 0) {
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+    autoTable(doc, {
+      startY: y + 18,
+      head: [['Date', 'Service', 'Present', 'Absent', 'Visitors']],
+      body: quarterlyReportData.records.map((row) => [row.attendance_date, row.service_type === 'sunday' ? 'Sunday Service' : 'Bible Study', row.total_members_present, row.total_members_absent, row.total_visitors]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 64, 175] },
+      styles: { fontSize: 8, cellPadding: 5 }
+    });
+    savePdf(doc, title);
+  };
+
+  const downloadManualPdf = () => {
+    if (!generatedManualReport) return;
+    const title = `Class ${classNumber} Manual Report`;
+    const doc = createPdf(title, `${generatedManualReport.dateRangeStart} to ${generatedManualReport.dateRangeEnd} | ${generatedManualReport.absenceTypes.join(', ')}`);
+    const rows = Object.values(generatedManualReport.reportData || {});
+    const totals = rows.reduce((sum, row) => sum + row.total_absences, 0);
+    const y = addBarChart(doc, 'Absence totals', [{ label: 'Total absences', value: totals, color: [249, 115, 22] }], 82);
+    autoTable(doc, { startY: y + 10, head: [['Member', 'Absent', 'Sick', 'Travel', 'Total']], body: rows.map((row) => [row.name, row.absent_count, row.sick_count, row.travel_count, row.total_absences]), theme: 'grid', headStyles: { fillColor: [30, 64, 175] }, styles: { fontSize: 8, cellPadding: 5 } });
+    savePdf(doc, title);
+  };
+
+  const downloadMemberPdf = () => {
+    if (!memberSummary || !selectedMemberId) return;
+    const memberName = members.find((member) => member.id === selectedMemberId)?.name || 'Member';
+    const title = `${memberName} Attendance Report`;
+    const doc = createPdf(title, `Class ${classNumber} | ${memberStartDate} to ${memberEndDate}`);
+    const y = addBarChart(doc, 'Attendance summary', [
+      { label: 'Present', value: memberSummary.present, color: [59, 130, 246] },
+      { label: 'Absent', value: memberSummary.absent, color: [249, 115, 22] },
+      { label: 'Sick', value: memberSummary.sick, color: [239, 68, 68] },
+      { label: 'Travel', value: memberSummary.travel, color: [234, 179, 8] }
+    ], 82);
+    autoTable(doc, { startY: y + 10, head: [['Date', 'Service', 'Status']], body: memberAttendanceHistory.map((record: any) => [record.attendance?.attendance_date || '', record.attendance?.service_type === 'sunday' ? 'Sunday Service' : 'Bible Study', String(record.status || '').toUpperCase()]), theme: 'grid', headStyles: { fillColor: [30, 64, 175] }, styles: { fontSize: 8, cellPadding: 5 } });
+    savePdf(doc, title);
+  };
 
   const periodKey = useMemo(() => {
     if (activeTab === "monthly") {
@@ -122,15 +246,90 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
       .sort((a, b) => a.attendance_date.localeCompare(b.attendance_date))
       .map((row) => ({
         date: row.attendance_date,
+        serviceType: row.service_type,
         present: row.total_members_present || 0,
         absent: row.total_members_absent || 0
       }));
   }, [attendanceRows]);
 
   const maxTrendValue = useMemo(() => {
-    const values = trendSeries.map((item) => item.present);
+    const values = trendSeries.flatMap((item) => [item.present, item.absent]);
     return Math.max(1, ...values);
   }, [trendSeries]);
+
+  const projectionSeries = useMemo(() => {
+    const recentRecords = trendSeries.slice(-3);
+    if (recentRecords.length === 0) return [];
+
+    const averagePresent = Math.round(recentRecords.reduce((sum, item) => sum + item.present, 0) / recentRecords.length);
+    const averageAbsent = Math.round(recentRecords.reduce((sum, item) => sum + item.absent, 0) / recentRecords.length);
+    return [1, 2, 3].map((record) => ({
+      label: `Next ${record}`,
+      present: averagePresent,
+      absent: averageAbsent
+    }));
+  }, [trendSeries]);
+
+  const buildQuarterlyMemberSummary = (records: any[]): QuarterlyMemberSummary[] => {
+    const byMember = new Map<string, any>();
+    records.forEach((record) => {
+      const memberId = String(record.member_id);
+      const current = byMember.get(memberId) || {
+        memberId,
+        name: record.member_name || 'Unknown member',
+        present: 0,
+        absent: 0,
+        sick: 0,
+        travel: 0,
+        weeks: new Map<string, { hasPresent: boolean; hasAbsence: boolean }>()
+      };
+      const status = String(record.status || '').toLowerCase();
+      if (status === 'present') current.present += 1;
+      else {
+        current.absent += 1;
+        if (status === 'sick' || record.absence_reason === 'S') current.sick += 1;
+        if (status === 'travel' || record.absence_reason === 'D') current.travel += 1;
+      }
+
+      const attendanceDate = record.attendance?.attendance_date;
+      if (attendanceDate) {
+        const date = new Date(`${attendanceDate}T00:00:00`);
+        date.setDate(date.getDate() - date.getDay());
+        const weekKey = date.toISOString().slice(0, 10);
+        const week = current.weeks.get(weekKey) || { hasPresent: false, hasAbsence: false };
+        week.hasPresent = week.hasPresent || status === 'present';
+        week.hasAbsence = week.hasAbsence || status !== 'present';
+        current.weeks.set(weekKey, week);
+      }
+      byMember.set(memberId, current);
+    });
+
+    return Array.from(byMember.values()).map((member) => {
+      const absenceWeeks = (Array.from(member.weeks.entries()) as Array<[string, { hasPresent: boolean; hasAbsence: boolean }]>)
+        .filter(([, week]) => week.hasAbsence && !week.hasPresent)
+        .map(([weekKey]) => weekKey)
+        .sort();
+      let currentStreak = 0;
+      let maxStreak = 0;
+      absenceWeeks.forEach((weekKey, index) => {
+        const previousWeek = index > 0 ? new Date(`${absenceWeeks[index - 1]}T00:00:00`) : null;
+        const currentWeek = new Date(`${weekKey}T00:00:00`);
+        const isConsecutive = previousWeek && currentWeek.getTime() - previousWeek.getTime() === 7 * 24 * 60 * 60 * 1000;
+        currentStreak = isConsecutive ? currentStreak + 1 : 1;
+        maxStreak = Math.max(maxStreak, currentStreak);
+      });
+      return {
+        memberId: member.memberId,
+        name: member.name,
+        present: member.present,
+        absent: member.absent,
+        sick: member.sick,
+        travel: member.travel,
+        consecutiveAbsentWeeks: maxStreak,
+        needsFollowUp: maxStreak >= 4
+      };
+    }).sort((a, b) => Number(b.needsFollowUp) - Number(a.needsFollowUp) || b.absent - a.absent || a.name.localeCompare(b.name));
+  };
 
   const monthlyBreakdown = useMemo(() => {
     const map = new Map<string, { present: number; absent: number; visitors: number; count: number }>();
@@ -154,6 +353,42 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
     return Math.max(1, ...values);
   }, [monthlyBreakdown]);
 
+  const attendanceAverages = useMemo(() => {
+    const getWeekStart = (dateValue: string) => {
+      const date = new Date(`${dateValue}T00:00:00`);
+      date.setDate(date.getDate() - date.getDay());
+      return date.toISOString().slice(0, 10);
+    };
+    const weekly = new Map<string, { present: number; absent: number; records: number }>();
+    const monthly = new Map<string, { present: number; absent: number; records: number }>();
+
+    attendanceRows.forEach((row) => {
+      const values = { present: row.total_members_present || 0, absent: row.total_members_absent || 0 };
+      const weekKey = getWeekStart(row.attendance_date);
+      const monthKey = row.attendance_date.slice(0, 7);
+      const week = weekly.get(weekKey) || { present: 0, absent: 0, records: 0 };
+      const month = monthly.get(monthKey) || { present: 0, absent: 0, records: 0 };
+      week.present += values.present;
+      week.absent += values.absent;
+      week.records += 1;
+      month.present += values.present;
+      month.absent += values.absent;
+      month.records += 1;
+      weekly.set(weekKey, week);
+      monthly.set(monthKey, month);
+    });
+
+    const toAverages = (items: Map<string, { present: number; absent: number; records: number }>) => Array.from(items.entries())
+      .sort(([first], [second]) => first.localeCompare(second))
+      .map(([period, values]) => ({
+        period,
+        present: Math.round(values.present / values.records),
+        absent: Math.round(values.absent / values.records)
+      }));
+
+    return { weekly: toAverages(weekly), monthly: toAverages(monthly) };
+  }, [attendanceRows]);
+
   useEffect(() => {
     loadMembers();
     loadSettings();
@@ -163,8 +398,12 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
     loadAttendance();
     if (activeTab === "quarterly") {
       loadReportStatus();
+      getClassMemberAttendanceRange(classNumber, dateRange.start, dateRange.end)
+        .then((records) => setQuarterlyMemberSummary(buildQuarterlyMemberSummary(records)))
+        .catch(() => setQuarterlyMemberSummary([]));
     } else {
       setReportStatus(null);
+      setQuarterlyMemberSummary([]);
     }
   }, [classNumber, activeTab, periodKey, dateRange.start, dateRange.end]);
 
@@ -261,6 +500,9 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
         serviceFilter
       );
       setMemberSummary(summary);
+      setMemberReportGeneratedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setSuccess(history?.length ? 'Member report generated.' : 'No attendance records found for this member and period.');
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError("Failed to load member attendance");
       console.error("Error loading member attendance:", err);
@@ -386,18 +628,22 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
         });
       }
 
-      // Save the manual report
-      const saved = await saveManualReport(
-        classNumber,
-        manualDateStart,
-        manualDateEnd,
-        selectedAbsenceTypes,
+      setGeneratedManualReport({
+        classNumber: classNumber.toString(),
+        reportDate: new Date().toISOString(),
+        dateRangeStart: manualDateStart,
+        dateRangeEnd: manualDateEnd,
+        absenceTypes: selectedAbsenceTypes,
         reportData
-      );
-
-      setGeneratedManualReport(saved as ManualReport);
-      setSuccess("Manual report generated successfully");
-      await loadManualReports();
+      });
+      try {
+        await saveManualReport(classNumber, manualDateStart, manualDateEnd, selectedAbsenceTypes, reportData);
+        await loadManualReports();
+        setSuccess("Manual report generated and saved.");
+      } catch (archiveError) {
+        console.error("Manual report archive error:", archiveError);
+        setSuccess("Manual report generated. It could not be saved to the archive.");
+      }
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError("Failed to generate manual report: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -611,75 +857,86 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
           </div>
         )}
 
+        {activeTab === "quarterly" && quarterlyMemberSummary.some((member) => member.needsFollowUp) && (
+          <div className="mb-4 rounded-xl border-2 border-orange-400/50 bg-orange-500/10 p-4 shadow-lg">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-bold text-orange-100">Members Needing Follow-up</h2>
+                <p className="text-xs text-orange-100/80">These members have been absent for four or more consecutive weeks.</p>
+              </div>
+              <span className="w-fit rounded-full bg-orange-400/20 px-3 py-1 text-sm font-bold text-orange-100">
+                {quarterlyMemberSummary.filter((member) => member.needsFollowUp).length} flagged
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {quarterlyMemberSummary.filter((member) => member.needsFollowUp).map((member) => (
+                <span key={member.memberId} className="rounded-lg border border-orange-300/30 bg-slate-900/30 px-2.5 py-1.5 text-xs font-semibold text-orange-100">
+                  {member.name} · {member.consecutiveAbsentWeeks} weeks
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Attendance Trend Chart */}
         {activeTab !== "manual" && (
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-bold text-white">Attendance Trend</h2>
+            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-white">Attendance Trend</h2>
+                <p className="text-[10px] text-slate-400">Each point is one submitted attendance record.</p>
+              </div>
               <span className="text-[9px] text-slate-400">{dateRange.start} to {dateRange.end}</span>
             </div>
             {trendSeries.length === 0 ? (
               <div className="text-sm text-slate-400 py-4 text-center">No data to display</div>
             ) : (
-              <div className="space-y-2">
-                <div className="relative h-24 bg-slate-700/30 rounded-lg border border-slate-600/30 p-2">
-                  <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${trendSeries.length * 10} 100`}>
-                    {/* Grid lines */}
-                    <line x1="0" y1="25" x2={trendSeries.length * 10} y2="25" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
-                    <line x1="0" y1="50" x2={trendSeries.length * 10} y2="50" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
-                    <line x1="0" y1="75" x2={trendSeries.length * 10} y2="75" stroke="#475569" strokeWidth="0.5" opacity="0.3" />
-                    
-                    {/* Line path */}
-                    <polyline
-                      points={trendSeries.map((item, index) => {
-                        const x = index * 10 + 5;
-                        const y = 100 - (item.present / maxTrendValue) * 90;
-                        return `${x},${y}`;
-                      }).join(' ')}
-                      fill="none"
-                      stroke="url(#lineGradient)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    
-                    {/* Data points */}
-                    {trendSeries.map((item, index) => {
-                      const x = index * 10 + 5;
-                      const y = 100 - (item.present / maxTrendValue) * 90;
-                      return (
-                        <circle
-                          key={`${item.date}-${index}`}
-                          cx={x}
-                          cy={y}
-                          r="1.5"
-                          fill="#3b82f6"
-                          className="hover:r-2"
-                        >
-                          <title>{`${item.date.slice(8)} - Present: ${item.present}, Absent: ${item.absent}`}</title>
-                        </circle>
-                      );
-                    })}
-                    
-                    <defs>
-                      <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#60a5fa" />
-                        <stop offset="100%" stopColor="#3b82f6" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  {/* Y-axis labels */}
-                  <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[8px] text-slate-500 -ml-6">
-                    <span>{maxTrendValue}</span>
-                    <span>{Math.round(maxTrendValue * 0.5)}</span>
-                    <span>0</span>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-300">
+                  <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-400" /> Present</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-orange-400" /> Absent</span>
+                  <span className="text-slate-500">Scale: 0-{maxTrendValue}</span>
+                </div>
+                <div className="rounded-lg border border-slate-700/60 bg-slate-900/30 divide-y divide-slate-700/50">
+                  {trendSeries.map((item) => (
+                    <div key={`${item.date}-${item.serviceType}`} className="space-y-1.5 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3 text-[10px]">
+                        <span className="font-semibold text-slate-300">{item.date.slice(5)} <span className="font-normal text-slate-500">{item.serviceType === 'sunday' ? 'Sunday' : 'Bible Study'}</span></span>
+                        <span className="text-slate-500">{item.present + item.absent} members</span>
+                      </div>
+                      <div className="grid grid-cols-[52px_1fr_28px] items-center gap-2 text-[10px]">
+                        <span className="text-blue-300">Present</span>
+                        <div className="h-2 rounded-full bg-slate-700"><div className="h-2 rounded-full bg-blue-400" style={{ width: `${(item.present / maxTrendValue) * 100}%` }} /></div>
+                        <span className="text-right font-semibold text-blue-300">{item.present}</span>
+                      </div>
+                      <div className="grid grid-cols-[52px_1fr_28px] items-center gap-2 text-[10px]">
+                        <span className="text-orange-300">Absent</span>
+                        <div className="h-2 rounded-full bg-slate-700"><div className="h-2 rounded-full bg-orange-400" style={{ width: `${(item.absent / maxTrendValue) * 100}%` }} /></div>
+                        <span className="text-right font-semibold text-orange-300">{item.absent}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {projectionSeries.length > 0 && (
+                  <div className="rounded-lg border border-dashed border-cyan-500/40 bg-cyan-500/5 p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-semibold text-cyan-200">Simple projection</h3>
+                        <p className="text-[10px] text-slate-400">Estimated from the average of the last three records.</p>
+                      </div>
+                      <span className="text-[10px] text-cyan-300">Not a guarantee</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {projectionSeries.map((item) => (
+                        <div key={item.label} className="rounded-md bg-slate-900/40 p-2 text-center">
+                          <p className="mb-1 text-[10px] text-slate-400">{item.label}</p>
+                          <p className="text-xs font-semibold text-blue-300">{item.present} present</p>
+                          <p className="text-xs font-semibold text-orange-300">{item.absent} absent</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                {/* X-axis dates */}
-                <div className="flex justify-between text-[9px] text-slate-400 px-2">
-                  <span>{trendSeries[0]?.date.slice(5)}</span>
-                  {trendSeries.length > 1 && <span>{trendSeries[trendSeries.length - 1]?.date.slice(5)}</span>}
-                </div>
+                )}
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="p-2 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-300">
                     <p className="text-slate-400 text-[9px] mb-0.5">Records</p>
@@ -731,13 +988,49 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
           </div>
         )}
 
+        {activeTab === "quarterly" && (attendanceAverages.weekly.length > 0 || attendanceAverages.monthly.length > 0) && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
+            <h2 className="text-sm font-bold text-white mb-1">Average Attendance Statistics</h2>
+            <p className="text-[10px] text-slate-400 mb-3">Average members present and absent per submitted record.</p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-slate-300">Weekly average</h3>
+                <div className="space-y-2">
+                  {attendanceAverages.weekly.map((item) => (
+                    <div key={item.period} className="rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
+                      <div className="mb-1 flex justify-between text-[10px] text-slate-400"><span>Week of {item.period}</span><span>Present {item.present} · Absent {item.absent}</span></div>
+                      <div className="flex h-2 gap-1"><div className="rounded-full bg-blue-400" style={{ width: `${Math.max(3, item.present * 100 / Math.max(item.present, item.absent, 1))}%` }} /><div className="rounded-full bg-orange-400" style={{ width: `${Math.max(3, item.absent * 100 / Math.max(item.present, item.absent, 1))}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-slate-300">Monthly average</h3>
+                <div className="space-y-2">
+                  {attendanceAverages.monthly.map((item) => (
+                    <div key={item.period} className="rounded-lg border border-slate-700/60 bg-slate-900/30 p-2">
+                      <div className="mb-1 flex justify-between text-[10px] text-slate-400"><span>{item.period}</span><span>Present {item.present} · Absent {item.absent}</span></div>
+                      <div className="flex h-2 gap-1"><div className="rounded-full bg-blue-400" style={{ width: `${Math.max(3, item.present * 100 / Math.max(item.present, item.absent, 1))}%` }} /><div className="rounded-full bg-orange-400" style={{ width: `${Math.max(3, item.absent * 100 / Math.max(item.present, item.absent, 1))}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* Quarterly Report Display */}
         {activeTab === "quarterly" && showQuarterlyReport && quarterlyReportData && (
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-white">Quarterly Report</h2>
-              <span className="text-[10px] text-slate-400">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline text-[10px] text-slate-400">{quarterlyReportData.dateRange.start} to {quarterlyReportData.dateRange.end}</span>
+                <button onClick={downloadQuarterlyPdf} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500">
+                  <Download className="h-3.5 w-3.5" /> PDF
+                </button>
+              </div>
             </div>
             
             {/* Summary Cards */}
@@ -783,6 +1076,49 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "quarterly" && quarterlyMemberSummary.length > 0 && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl shadow-xl border border-slate-700/50 p-3 mb-4">
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-white">Members Needing Follow-up</h2>
+              <p className="text-[10px] text-slate-400">Members with four or more consecutive absent weeks are flagged for contact.</p>
+            </div>
+            {quarterlyMemberSummary.some((member) => member.needsFollowUp) && (
+              <div className="mb-3 rounded-lg border border-orange-500/40 bg-orange-500/10 p-3">
+                <p className="text-xs font-semibold text-orange-200">Follow-up needed</p>
+                <p className="mt-1 text-[10px] text-orange-100/80">
+                  {quarterlyMemberSummary.filter((member) => member.needsFollowUp).map((member) => `${member.name} (${member.consecutiveAbsentWeeks} weeks)`).join(', ')}
+                </p>
+              </div>
+            )}
+            <div className="overflow-x-auto rounded-lg border border-slate-700/60">
+              <table className="w-full min-w-[620px] text-xs text-slate-300">
+                <thead className="bg-slate-900/50 text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Member</th>
+                    <th className="px-3 py-2 text-center">Present</th>
+                    <th className="px-3 py-2 text-center">Absent</th>
+                    <th className="px-3 py-2 text-center">Sick</th>
+                    <th className="px-3 py-2 text-center">Travel</th>
+                    <th className="px-3 py-2 text-center">Longest absent streak</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {quarterlyMemberSummary.map((member) => (
+                    <tr key={member.memberId} className={member.needsFollowUp ? 'bg-orange-500/10' : ''}>
+                      <td className="px-3 py-2 font-medium text-white">{member.name}{member.needsFollowUp && <span className="ml-2 rounded bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-orange-200">FOLLOW UP</span>}</td>
+                      <td className="px-3 py-2 text-center text-blue-300">{member.present}</td>
+                      <td className="px-3 py-2 text-center text-orange-300">{member.absent}</td>
+                      <td className="px-3 py-2 text-center text-red-300">{member.sick}</td>
+                      <td className="px-3 py-2 text-center text-yellow-300">{member.travel}</td>
+                      <td className={`px-3 py-2 text-center font-semibold ${member.needsFollowUp ? 'text-orange-200' : 'text-slate-300'}`}>{member.consecutiveAbsentWeeks} weeks</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -880,9 +1216,12 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
             {/* Generated Report Display */}
             {generatedManualReport && (
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/50 p-6">
-                <h3 className="text-base font-semibold text-white mb-6">
-                  Generated Report
-                </h3>
+                <div className="mb-6 flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-white">Generated Report</h3>
+                  <button onClick={downloadManualPdf} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500">
+                    <Download className="h-3.5 w-3.5" /> PDF
+                  </button>
+                </div>
                 <div className="mb-6 p-4 bg-blue-600/20 border border-blue-500/30 rounded-xl">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -1058,7 +1397,15 @@ export const ClassReports: React.FC<ClassReportsProps> = ({ classNumber, onBack 
                     </h2>
                     <p className="text-xs text-slate-400">{memberStartDate} to {memberEndDate}</p>
                   </div>
+                  <button onClick={downloadMemberPdf} className="ml-auto flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500">
+                    <Download className="h-3.5 w-3.5" /> PDF
+                  </button>
                 </div>
+                {memberReportGeneratedAt && (
+                  <div className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    Report generated at {memberReportGeneratedAt} · {memberAttendanceHistory.filter((record) => record.attendance?.service_type === 'sunday').length} Sunday records · {memberAttendanceHistory.filter((record) => record.attendance?.service_type === 'bible-study').length} Bible Study records
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                   <div className="bg-blue-600/20 border border-blue-500/30 rounded-xl p-4">

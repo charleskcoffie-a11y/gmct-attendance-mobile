@@ -225,6 +225,7 @@ function App() {
                 ) : adminSelectedClass === null ? (
                   <Suspense fallback={<ComponentLoader />}>
                     <AdminClassSelector
+                      onViewAllReports={() => setAdminView('recent-attendance')}
                       onSelectClass={(classNumber) => {
                         setAdminSelectedClass(classNumber);
                         setAdminClassView('attendance');
@@ -237,6 +238,7 @@ function App() {
                       <AttendanceMarking
                         classNumber={adminSelectedClass}
                         onBackToClasses={() => setAdminSelectedClass(null)}
+                        onViewReports={() => setAdminClassView('reports')}
                         isAdminView={true}
                       />
                       <SyncManager />
