@@ -3,10 +3,12 @@ import { getAppSettings } from "../supabase";
 
 interface AdminClassSelectorProps {
   onSelectClass: (classNumber: number) => void;
+  onViewAllReports: () => void;
 }
 
 export const AdminClassSelector: React.FC<AdminClassSelectorProps> = ({
-  onSelectClass
+  onSelectClass,
+  onViewAllReports
 }) => {
   const [maxClasses, setMaxClasses] = useState<number>(10);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,13 @@ export const AdminClassSelector: React.FC<AdminClassSelectorProps> = ({
             <h2 className="text-sm font-semibold text-white">Classes</h2>
             <span className="text-[10px] text-slate-400">{maxClasses} total</span>
           </div>
+
+          <button
+            onClick={onViewAllReports}
+            className="mb-3 w-full rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2.5 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+          >
+            View All Classes Analytics
+          </button>
 
           {loading ? (
             <div className="text-xs text-slate-400">Loading classes...</div>
