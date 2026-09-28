@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import { ClassLeader, Member } from "../types";
-import { AlertCircle, CheckCircle, Trash2, Edit2, Plus, ChevronDown, Search, X } from "lucide-react";
+import { AlertCircle, CheckCircle, Trash2, Edit2, Plus, ChevronDown, Search, X, MapPin } from "lucide-react";
 
 interface AdminSettingsProps {
   onBack: () => void;
@@ -34,12 +34,18 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
   const [ministerEmails, setMinisterEmails] = useState("");
   const [monthlyAbsenceThreshold, setMonthlyAbsenceThreshold] = useState(4);
   const [quarterlyAbsenceThreshold, setQuarterlyAbsenceThreshold] = useState(10);
+  const [attendanceAddress, setAttendanceAddress] = useState("");
+  const [churchLatitude, setChurchLatitude] = useState("");
+  const [churchLongitude, setChurchLongitude] = useState("");
+  const [attendanceRadius, setAttendanceRadius] = useState("150");
+  const [attendanceTimezone, setAttendanceTimezone] = useState("America/Toronto");
   const [openSections, setOpenSections] = useState({
     statsTotals: false,
     appConfig: false,
     classLeaders: false,
     ministerEmails: false,
     absenceThresholds: false,
+    attendanceLocation: false,
     adminPassword: false,
     environmentCache: false,
     databaseConnection: false,
@@ -182,6 +188,11 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       setMinisterEmails(data?.minister_emails || "");
       setMonthlyAbsenceThreshold(data?.monthly_absence_threshold || 4);
       setQuarterlyAbsenceThreshold(data?.quarterly_absence_threshold || 10);
+      setAttendanceAddress(data?.attendance_address || "");
+      setChurchLatitude(data?.church_latitude?.toString() || "");
+      setChurchLongitude(data?.church_longitude?.toString() || "");
+      setAttendanceRadius(data?.attendance_radius_meters?.toString() || "150");
+      setAttendanceTimezone(data?.attendance_timezone || "America/Toronto");
     } catch (err) {
       console.error("Error loading app settings:", err);
     }
@@ -495,6 +506,66 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     }
   };
 
+  const handleSaveAttendanceLocation = async () => {
+    const latitude = Number(churchLatitude);
+    const longitude = Number(churchLongitude);
+    const radius = Number(attendanceRadius);
+
+    if (!attendanceAddress.trim()) {
+      setError("Attendance address is required");
+      return;
+    }
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      setError("Enter a valid latitude between -90 and 90");
+      return;
+    }
+
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      setError("Enter a valid longitude between -180 and 180");
+      return;
+    }
+
+    if (!Number.isFinite(radius) || radius < 25 || radius > 1000) {
+      setError("Attendance radius must be between 25 and 1000 metres");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({
+          attendance_address: attendanceAddress.trim(),
+          church_latitude: latitude,
+          church_longitude: longitude,
+          attendance_radius_meters: radius,
+          attendance_timezone: attendanceTimezone.trim() || "America/Toronto",
+        })
+        .eq("id", "app_settings");
+
+      if (error) throw error;
+
+      setAppSettings((previous: any) => ({
+        ...previous,
+        attendance_address: attendanceAddress.trim(),
+        church_latitude: latitude,
+        church_longitude: longitude,
+        attendance_radius_meters: radius,
+        attendance_timezone: attendanceTimezone.trim() || "America/Toronto",
+      }));
+      setSuccess("Attendance location updated successfully");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(
+        "Failed to update attendance location: " +
+          (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const classLeadersOpen = editingId !== null ? true : openSections.classLeaders;
   const isLeadersScrollable = classLeaders.length > 3;
 
@@ -605,6 +676,91 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
           )}
         </div>
       )}
+
+      {/* Minister Emails */}
+      <div className="bg-slate-900/70 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/60 p-6 mb-6">
+        <button
+          type="button"
+          onClick={() => toggleSection("attendanceLocation")}
+          className="w-full flex items-center justify-between text-left"
+          aria-expanded={openSections.attendanceLocation}
+        >
+          <span className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-emerald-300" />
+            <h2 className="text-xl font-bold text-white">Attendance Location</h2>
+          </span>
+          <ChevronDown
+            className={`w-5 h-5 text-slate-300 transition-transform ${openSections.attendanceLocation ? "rotate-180" : ""}`}
+          />
+        </button>
+        {openSections.attendanceLocation && (
+          <div className="mt-5 space-y-5">
+            <p className="text-sm text-slate-300">
+              Members use this shared location to verify Sunday self-attendance. The address is for display; coordinates are used for GPS distance checks.
+            </p>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-200">Church address</label>
+              <input
+                type="text"
+                value={attendanceAddress}
+                onChange={(e) => setAttendanceAddress(e.target.value)}
+                placeholder="69 Milvan Drive, North York, Ontario"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-200">Latitude</label>
+                <input
+                  type="number"
+                  step="0.000001"
+                  value={churchLatitude}
+                  onChange={(e) => setChurchLatitude(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-200">Longitude</label>
+                <input
+                  type="number"
+                  step="0.000001"
+                  value={churchLongitude}
+                  onChange={(e) => setChurchLongitude(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-200">Radius (metres)</label>
+                <input
+                  type="number"
+                  min="25"
+                  max="1000"
+                  value={attendanceRadius}
+                  onChange={(e) => setAttendanceRadius(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-200">Timezone</label>
+              <input
+                type="text"
+                value={attendanceTimezone}
+                onChange={(e) => setAttendanceTimezone(e.target.value)}
+                placeholder="America/Toronto"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-white focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <button
+              onClick={handleSaveAttendanceLocation}
+              disabled={loading}
+              className="rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-3 font-semibold text-white shadow-lg transition-all hover:from-emerald-700 hover:to-cyan-700 disabled:opacity-50"
+            >
+              {loading ? "Saving..." : "Save Attendance Location"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Minister Emails */}
       <div className="bg-slate-900/70 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-700/60 p-6 mb-6">

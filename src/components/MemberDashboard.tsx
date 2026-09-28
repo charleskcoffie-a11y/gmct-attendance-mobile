@@ -7,7 +7,9 @@ const AttendanceMarking = lazy(() => import('./AttendanceMarking'));
 const AttendanceRecords = lazy(() => import('./AttendanceRecords'));
 const RecentAttendanceView = lazy(() => import('./RecentAttendanceView'));
 const MemberContributions = lazy(() => import('./MemberContributions'));
+const MemberSelfAttendance = lazy(() => import('./MemberSelfAttendance'));
 const ClassReports = lazy(() => import('./ClassReports'));
+const MemberAttendancePrompt = lazy(() => import('./MemberAttendancePrompt'));
 
 interface MemberDashboardProps {
   member: Member;
@@ -15,7 +17,7 @@ interface MemberDashboardProps {
   onMemberUpdated: (member: Member) => void;
 }
 
-type MemberView = 'profile' | 'contributions' | 'attendance' | 'records' | 'recent-records' | 'reports' | 'edit';
+type MemberView = 'profile' | 'contributions' | 'self-attendance' | 'attendance' | 'records' | 'recent-records' | 'reports' | 'edit';
 
 const ComponentLoader = () => (
   <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
@@ -54,6 +56,9 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
   if (view === 'profile') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+        <Suspense fallback={null}>
+          <MemberAttendancePrompt />
+        </Suspense>
         <div className="max-w-2xl mx-auto p-6">
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -106,6 +111,13 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
               >
                 <Coins className="w-4 h-4" />
                 View Contributions Dashboard
+              </button>
+              <button
+                onClick={() => setView('self-attendance')}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-500"
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                Mark My Attendance
               </button>
             </div>
           </div>
@@ -162,6 +174,9 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
   if (view === 'contributions') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+        <Suspense fallback={null}>
+          <MemberAttendancePrompt />
+        </Suspense>
         <div className="sticky top-0 z-40 bg-slate-950/85 backdrop-blur border-b border-slate-800">
           <div className="max-w-4xl mx-auto p-3 flex items-center justify-between gap-3">
             <button
@@ -196,12 +211,23 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
     );
   }
 
+  if (view === 'self-attendance') {
+    return (
+      <Suspense fallback={<ComponentLoader />}>
+        <MemberSelfAttendance onBack={() => setView('profile')} />
+      </Suspense>
+    );
+  }
+
   if (!isClassLeader || typeof mappedClassNumber !== 'number') {
     return null;
   }
 
   return (
     <div className="min-h-screen bg-slate-100">
+      <Suspense fallback={null}>
+        <MemberAttendancePrompt />
+      </Suspense>
       <div className="sticky top-0 z-40 bg-gradient-to-r from-slate-900 via-blue-700 to-emerald-700 text-white shadow-lg">
         <div className="max-w-6xl mx-auto p-3 flex items-center justify-between gap-3">
           <button
