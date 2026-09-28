@@ -679,6 +679,29 @@ export async function saveAttendance(
   return attendanceData;
 }
 
+export async function markMemberSelfAttendance(
+  latitude: number,
+  longitude: number,
+  accuracyMeters?: number
+) {
+  const { data, error } = await supabase.rpc('mark_member_self_attendance', {
+    p_latitude: latitude,
+    p_longitude: longitude,
+    p_accuracy_meters: accuracyMeters ?? null,
+  });
+
+  if (error) {
+    console.error('Error marking member self-attendance:', error);
+    throw error;
+  }
+
+  return data as {
+    already_marked: boolean;
+    attendance_id: string;
+    attendance_date: string;
+  };
+}
+
 // Get attendance for a specific class on a specific date and service type
 export async function getAttendanceByDateAndService(
   classNumber: number,
