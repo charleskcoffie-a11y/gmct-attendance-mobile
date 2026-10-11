@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, MapPin } from 'lucide-react';
 import { markMemberSelfAttendance } from '../supabase';
+import {
+  checkAttendanceLocation,
+  getAttendanceErrorMessage,
+} from '../services/attendanceLocationService';
 
 interface MemberSelfAttendanceProps {
   onBack: () => void;
@@ -26,13 +30,25 @@ export default function MemberSelfAttendance({ onBack }: MemberSelfAttendancePro
     }
 
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setPendingLocation({
+      async ({ coords }) => {
+        const location = {
           latitude: coords.latitude,
           longitude: coords.longitude,
           accuracy: coords.accuracy,
-        });
-        setLoading(false);
+        };
+
+        try {
+          const locationCheck = await checkAttendanceLocation(location);
+          if (!locationCheck.isWithinArea) {
+            setError(locationCheck.message || 'You are outside the church attendance area.');
+            return;
+          }
+          setPendingLocation(location);
+        } catch (locationError) {
+          setError(getAttendanceErrorMessage(locationError, 'Attendance location could not be checked.'));
+        } finally {
+          setLoading(false);
+        }
       },
       (locationError) => {
         setLoading(false);
@@ -63,8 +79,8 @@ export default function MemberSelfAttendance({ onBack }: MemberSelfAttendancePro
           ? 'Your Sunday attendance was already marked.'
           : 'Your Sunday attendance has been marked.'
       );
-    } catch (requestError: any) {
-      setError(requestError?.message || 'Attendance could not be marked.');
+    } catch (requestError) {
+      setError(getAttendanceErrorMessage(requestError, 'Attendance could not be marked.'));
     } finally {
       setLoading(false);
     }
