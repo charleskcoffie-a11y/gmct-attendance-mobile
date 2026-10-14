@@ -78,7 +78,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
     try {
       const { error } = await supabase
         .from("members")
-        .select("count", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .limit(1);
 
       if (error) {
