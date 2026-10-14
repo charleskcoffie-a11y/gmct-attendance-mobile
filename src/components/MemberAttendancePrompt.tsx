@@ -12,16 +12,40 @@ interface PendingLocation {
   accuracy: number;
 }
 
-export default function MemberAttendancePrompt() {
+interface MemberAttendancePromptProps {
+  memberId: string;
+}
+
+const getLocalDate = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+};
+
+const getAttendanceStorageKey = (memberId: string, attendanceDate: string) =>
+  `gmct-self-attendance:${memberId}:${attendanceDate}`;
+
+export default function MemberAttendancePrompt({ memberId }: MemberAttendancePromptProps) {
   const [checking, setChecking] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<PendingLocation | null>(null);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [markedToday, setMarkedToday] = useState(() => {
+    try {
+      return localStorage.getItem(getAttendanceStorageKey(memberId, getLocalDate())) === 'marked';
+    } catch (storageError) {
+      console.error('Unable to read saved self-attendance status:', storageError);
+      return false;
+    }
+  });
+  const [message, setMessage] = useState<string | null>(() => (
+    markedToday ? 'Attendance taken for today.' : null
+  ));
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (new Date().getDay() !== 0 || !navigator.geolocation) return;
+    if (markedToday || new Date().getDay() !== 0 || !navigator.geolocation) return;
 
     setChecking(true);
     navigator.geolocation.getCurrentPosition(
@@ -46,14 +70,7 @@ export default function MemberAttendancePrompt() {
       () => setChecking(false),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     );
-  }, []);
-
-  useEffect(() => {
-    if (!message) return;
-
-    const dismissTimer = window.setTimeout(() => setDismissed(true), 3000);
-    return () => window.clearTimeout(dismissTimer);
-  }, [message]);
+  }, [markedToday, memberId]);
 
   const confirmAttendance = async () => {
     if (!pendingLocation) return;
@@ -66,8 +83,15 @@ export default function MemberAttendancePrompt() {
         pendingLocation.longitude,
         pendingLocation.accuracy
       );
+      const attendanceDate = result.attendance_date || getLocalDate();
+      try {
+        localStorage.setItem(getAttendanceStorageKey(memberId, attendanceDate), 'marked');
+      } catch (storageError) {
+        console.error('Unable to save self-attendance status on this device:', storageError);
+      }
+      setMarkedToday(true);
       setPendingLocation(null);
-      setMessage(result.already_marked ? 'Your Sunday attendance was already marked.' : 'Your Sunday attendance has been marked.');
+      setMessage('Attendance taken for today.');
     } catch (requestError) {
       setError(getAttendanceErrorMessage(requestError, 'Attendance could not be marked.'));
     } finally {
@@ -82,7 +106,15 @@ export default function MemberAttendancePrompt() {
       {message ? (
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
-          <p className="text-sm text-emerald-100">{message}</p>
+          <p className="text-sm text-emerald-100" role="status">{message}</p>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="ml-auto rounded-lg p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            aria-label="Dismiss attendance confirmation"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       ) : error ? (
         <div className="flex items-start gap-3" role="alert">

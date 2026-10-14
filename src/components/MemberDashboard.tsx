@@ -57,7 +57,7 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
         <Suspense fallback={null}>
-          <MemberAttendancePrompt />
+          <MemberAttendancePrompt memberId={currentMember.id} />
         </Suspense>
         <div className="max-w-2xl mx-auto p-6">
           <div className="mb-8 flex items-center justify-between">
@@ -175,7 +175,7 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
         <Suspense fallback={null}>
-          <MemberAttendancePrompt />
+          <MemberAttendancePrompt memberId={currentMember.id} />
         </Suspense>
         <div className="sticky top-0 z-40 bg-slate-950/85 backdrop-blur border-b border-slate-800">
           <div className="max-w-4xl mx-auto p-3 flex items-center justify-between gap-3">
@@ -226,7 +226,7 @@ export default function MemberDashboard({ member, onLogout, onMemberUpdated }: M
   return (
     <div className="min-h-screen bg-slate-100">
       <Suspense fallback={null}>
-        <MemberAttendancePrompt />
+        <MemberAttendancePrompt memberId={currentMember.id} />
       </Suspense>
       <div className="sticky top-0 z-40 bg-gradient-to-r from-slate-900 via-blue-700 to-emerald-700 text-white shadow-lg">
         <div className="max-w-6xl mx-auto p-3 flex items-center justify-between gap-3">
