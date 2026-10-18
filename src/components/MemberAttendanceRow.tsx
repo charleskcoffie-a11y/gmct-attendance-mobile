@@ -13,6 +13,8 @@ interface MemberAttendanceRowProps {
   onEdit: () => void;
   onDelete?: () => void;
   showDeleteButton?: boolean;
+  selfMarked?: boolean;
+  disabled?: boolean;
 }
 
 const normalizeStatus = (value?: string) =>
@@ -30,6 +32,8 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
   onEdit,
   onDelete,
   showDeleteButton = false,
+  selfMarked = false,
+  disabled = false,
 }) => {
   const isAbsent = normalizeStatus(attendanceStatus) !== "present";
 
@@ -41,6 +45,9 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
       <div className="flex items-center justify-between mb-3">
         <div className="flex-1">
           <h4 className="font-semibold text-white">{name}</h4>
+          {selfMarked && (
+            <p className="text-xs text-emerald-300">Self-marked Present (protected)</p>
+          )}
           {(phone || phoneNumber) && (
             <p className="text-sm text-slate-300">{phone || phoneNumber}</p>
           )}
@@ -66,6 +73,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onStatusChange(id, "present")}
+          disabled={disabled || selfMarked}
           className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
             normalizeStatus(attendanceStatus) === "present"
               ? "bg-emerald-600 text-white border-emerald-500"
@@ -76,6 +84,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
         </button>
         <button
           onClick={() => onStatusChange(id, "absent")}
+          disabled={disabled || selfMarked}
           className={`py-2 px-2 rounded-lg font-medium text-sm transition border ${
             normalizeStatus(attendanceStatus) === "absent"
               ? "bg-red-600 text-white border-red-500"
@@ -91,6 +100,7 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
           <label className="block text-xs text-slate-300 mb-1">Absent Reason</label>
           <select
             value={absenceReason || ""}
+            disabled={disabled || selfMarked}
             onChange={(e) => onAbsenceReasonChange(id, e.target.value as "S" | "D" | "B" | "")}
             className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -112,7 +122,13 @@ export const MemberAttendanceRow: React.FC<MemberAttendanceRowProps> = React.mem
     prevProps.phoneNumber === nextProps.phoneNumber &&
     prevProps.attendanceStatus === nextProps.attendanceStatus &&
     prevProps.absenceReason === nextProps.absenceReason &&
-    prevProps.showDeleteButton === nextProps.showDeleteButton
+    prevProps.showDeleteButton === nextProps.showDeleteButton &&
+    prevProps.selfMarked === nextProps.selfMarked &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.onStatusChange === nextProps.onStatusChange &&
+    prevProps.onAbsenceReasonChange === nextProps.onAbsenceReasonChange &&
+    prevProps.onEdit === nextProps.onEdit &&
+    prevProps.onDelete === nextProps.onDelete
   );
 });
 

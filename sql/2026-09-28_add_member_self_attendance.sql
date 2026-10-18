@@ -2,6 +2,103 @@
 -- Configure church_latitude, church_longitude, attendance_radius_meters,
 -- and optionally attendance_timezone on the app_settings row before use.
 
+BEGIN;
+
+ALTER TABLE public.attendance
+  ADD COLUMN IF NOT EXISTS total_members_sick INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_members_travel INTEGER DEFAULT 0;
+
+ALTER TABLE public.member_attendance
+  ADD COLUMN IF NOT EXISTS self_marked_at TIMESTAMPTZ;
+
+-- These records were created exclusively by the original self-attendance function.
+UPDATE public.member_attendance ma
+SET self_marked_at = COALESCE(ma.created_at, CURRENT_TIMESTAMP)
+FROM public.attendance a
+WHERE a.id = ma.attendance_id
+  AND a.service_type = 'sunday'
+  AND a.class_leader_name = 'Member self-attendance'
+  AND ma.status = 'present'
+  AND ma.self_marked_at IS NULL;
+
+CREATE OR REPLACE FUNCTION public.protect_self_marked_attendance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF OLD.self_marked_at IS NOT NULL THEN
+    IF NEW.attendance_id IS DISTINCT FROM OLD.attendance_id
+       OR NEW.member_id IS DISTINCT FROM OLD.member_id THEN
+      RAISE EXCEPTION 'Self-marked attendance cannot be moved to another member or service';
+    END IF;
+    NEW.self_marked_at := OLD.self_marked_at;
+    NEW.status := 'present';
+    NEW.absence_reason := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_self_marked_attendance ON public.member_attendance;
+CREATE TRIGGER protect_self_marked_attendance
+BEFORE UPDATE ON public.member_attendance
+FOR EACH ROW EXECUTE FUNCTION public.protect_self_marked_attendance();
+
+-- Recalculate protected service totals even when an older leader app sends stale counts.
+CREATE OR REPLACE FUNCTION public.protect_self_attendance_totals()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.member_attendance
+    WHERE attendance_id = NEW.id AND self_marked_at IS NOT NULL
+  ) THEN
+    SELECT COUNT(*) FILTER (WHERE status = 'present'),
+           COUNT(*) FILTER (WHERE status <> 'present'),
+           COUNT(*) FILTER (WHERE status = 'sick' OR (status <> 'present' AND absence_reason = 'S')),
+           COUNT(*) FILTER (WHERE status = 'travel' OR (status <> 'present' AND absence_reason = 'D'))
+    INTO NEW.total_members_present, NEW.total_members_absent,
+         NEW.total_members_sick, NEW.total_members_travel
+    FROM public.member_attendance
+    WHERE attendance_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_self_attendance_totals ON public.attendance;
+CREATE TRIGGER protect_self_attendance_totals
+BEFORE UPDATE ON public.attendance
+FOR EACH ROW EXECUTE FUNCTION public.protect_self_attendance_totals();
+
+CREATE OR REPLACE FUNCTION public.refresh_self_attendance_totals()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Updating the parent invokes protect_self_attendance_totals after each member write.
+  UPDATE public.attendance a
+  SET total_members_present = a.total_members_present
+  WHERE a.id = NEW.attendance_id
+    AND EXISTS (
+      SELECT 1 FROM public.member_attendance
+      WHERE attendance_id = a.id AND self_marked_at IS NOT NULL
+    );
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS refresh_self_attendance_totals ON public.member_attendance;
+CREATE TRIGGER refresh_self_attendance_totals
+AFTER INSERT OR UPDATE ON public.member_attendance
+FOR EACH ROW EXECUTE FUNCTION public.refresh_self_attendance_totals();
+
 ALTER TABLE IF EXISTS public.app_settings
   ADD COLUMN IF NOT EXISTS attendance_address TEXT,
   ADD COLUMN IF NOT EXISTS church_latitude NUMERIC,
@@ -39,9 +136,14 @@ BEGIN
   END IF;
 
   SELECT * INTO v_member
-  FROM public.members
-  WHERE LOWER(email) = LOWER(auth.jwt() ->> 'email')
-    AND COALESCE(active, is_active, true) = true
+  FROM public.members m
+  WHERE LOWER(m.email) = LOWER(auth.jwt() ->> 'email')
+    -- JSON lookup supports schemas with active, is_active, or both columns.
+    AND COALESCE(
+      (to_jsonb(m) ->> 'active')::BOOLEAN,
+      (to_jsonb(m) ->> 'is_active')::BOOLEAN,
+      true
+    ) = true
   LIMIT 1;
 
   IF v_member.id IS NULL THEN
@@ -83,8 +185,15 @@ BEGIN
     RAISE EXCEPTION 'You are outside the church attendance area';
   END IF;
 
-  -- Serialize retries for the same member and Sunday before checking existing rows.
-  PERFORM pg_advisory_xact_lock(hashtextextended(v_member.id::TEXT || ':' || v_date::TEXT, 0));
+  -- Serialize self-attendance within a class, including creation of its Sunday record.
+  PERFORM pg_advisory_xact_lock(hashtextextended(COALESCE(v_member.class_number, '') || ':' || v_date::TEXT, 0));
+
+  -- Use the same parent-before-member lock order as a leader saving the class record.
+  PERFORM 1 FROM public.attendance
+  WHERE class_number = COALESCE(v_member.class_number, '')
+    AND service_type = 'sunday'
+    AND attendance_date::DATE = v_date
+  FOR UPDATE;
 
   SELECT ma.attendance_id INTO v_attendance_id
   FROM public.member_attendance ma
@@ -96,6 +205,10 @@ BEGIN
   LIMIT 1;
 
   IF v_attendance_id IS NOT NULL THEN
+    UPDATE public.member_attendance
+    SET self_marked_at = COALESCE(self_marked_at, CURRENT_TIMESTAMP),
+        absence_reason = NULL
+    WHERE attendance_id = v_attendance_id AND member_id = v_member.id;
     RETURN jsonb_build_object('already_marked', true, 'attendance_id', v_attendance_id, 'attendance_date', v_date);
   END IF;
 
@@ -118,11 +231,13 @@ BEGIN
   END IF;
 
   INSERT INTO public.member_attendance (
-    attendance_id, member_id, member_name, class_number, status, absence_reason
+    attendance_id, member_id, member_name, class_number, status, absence_reason, self_marked_at
   ) VALUES (
-    v_attendance_id, v_member.id, v_member.name, COALESCE(v_member.class_number, ''), 'present', NULL
+    v_attendance_id, v_member.id, v_member.name, COALESCE(v_member.class_number, ''), 'present', NULL, CURRENT_TIMESTAMP
   )
-  ON CONFLICT (attendance_id, member_id) DO UPDATE SET status = 'present';
+  ON CONFLICT (attendance_id, member_id) DO UPDATE
+  SET status = 'present', absence_reason = NULL,
+      self_marked_at = COALESCE(member_attendance.self_marked_at, EXCLUDED.self_marked_at);
 
   UPDATE public.attendance
   SET total_members_present = (
@@ -137,3 +252,5 @@ $$;
 
 REVOKE ALL ON FUNCTION public.mark_member_self_attendance(NUMERIC, NUMERIC, NUMERIC) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.mark_member_self_attendance(NUMERIC, NUMERIC, NUMERIC) TO authenticated;
+
+COMMIT;

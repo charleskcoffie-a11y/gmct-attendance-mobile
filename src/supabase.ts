@@ -1,6 +1,7 @@
 // Supabase Service for GMCT Attendance Mobile App
 import { createClient } from '@supabase/supabase-js';
 import { Member, MemberContribution, MemberContributionInput } from './types';
+import type { SavedMemberStatus } from './attendanceStatus';
 
 // These should match your main app's Supabase credentials
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -738,7 +739,7 @@ export async function getAttendanceByDateAndService(
   
   if (error) {
     console.error('Error fetching attendance record:', error);
-    return null;
+    throw error;
   }
   
   return data;
@@ -749,7 +750,7 @@ export async function getMemberAttendanceForDateAndService(
   classNumber: number,
   date: string,
   serviceType: 'sunday' | 'bible-study'
-) {
+): Promise<SavedMemberStatus[]> {
   // Always use plain YYYY-MM-DD to match what Supabase stores
   const normalizedDate = (date || '').slice(0, 10);
 
@@ -785,58 +786,24 @@ export async function getMemberAttendanceForDateAndService(
   
   console.log('📋 Attendance record:', attendanceRecord);
   
-  if (attendanceError || !attendanceRecord) {
-    console.error('❌ No attendance record found:', attendanceError);
-    return [];
+  if (attendanceError) {
+    console.error('Error fetching attendance record:', attendanceError);
+    throw attendanceError;
   }
+  if (!attendanceRecord) return [];
   
   // Get member_attendance records WITHOUT the join - just the raw attendance data
-  let { data: memberAttendanceData, error: memberError } = await supabase
+  const { data: memberAttendanceData, error: memberError } = await supabase
     .from('member_attendance')
-    .select('member_id, member_name, status, absence_reason')
+    .select('*')
     .eq('attendance_id', attendanceRecord.id)
-    .order('member_name', { ascending: true });
-
-  // Backward compatibility: older databases may not have absence_reason yet.
-  if (memberError && (memberError.message || '').toLowerCase().includes('absence_reason')) {
-    const fallbackQuery = await supabase
-      .from('member_attendance')
-      .select('member_id, member_name, status')
-      .eq('attendance_id', attendanceRecord.id)
-      .order('member_name', { ascending: true });
-
-    memberAttendanceData = fallbackQuery.data as any;
-    memberError = fallbackQuery.error;
-  }
-
-  // Older schemas may also be missing member_name.
-  if (memberError && (memberError.message || '').toLowerCase().includes('member_name')) {
-    const fallbackWithoutName = await supabase
-      .from('member_attendance')
-      .select('member_id, status, absence_reason')
-      .eq('attendance_id', attendanceRecord.id)
-      .order('member_id', { ascending: true });
-
-    memberAttendanceData = fallbackWithoutName.data as any;
-    memberError = fallbackWithoutName.error;
-  }
-
-  if (memberError && (memberError.message || '').toLowerCase().includes('absence_reason')) {
-    const fallbackMinimal = await supabase
-      .from('member_attendance')
-      .select('member_id, status')
-      .eq('attendance_id', attendanceRecord.id)
-      .order('member_id', { ascending: true });
-
-    memberAttendanceData = fallbackMinimal.data as any;
-    memberError = fallbackMinimal.error;
-  }
+    .order('member_id', { ascending: true });
 
   console.log('👥 Raw member attendance records from DB:', memberAttendanceData);
   
   if (memberError) {
     console.error('❌ Error fetching member attendance records:', memberError);
-    return [];
+    throw memberError;
   }
 
   const result = (memberAttendanceData || []).map((record: any) => ({
@@ -844,6 +811,7 @@ export async function getMemberAttendanceForDateAndService(
     member_name: (record.member_name || '').trim().replace(/\s+/g, ' '),
     status: (record.status || '').toString().trim().toLowerCase(),
     absence_reason: (record.absence_reason || '').toString().trim().toUpperCase(),
+    self_marked_at: typeof record.self_marked_at === 'string' ? record.self_marked_at : null,
   }));
   
   console.log('📤 Mapped result:', result);

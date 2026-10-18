@@ -3,6 +3,7 @@ import { saveAttendance, getClassMembers, getMemberAttendanceForDateAndService }
 import { Member } from "../types";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { MemberAttendanceRow } from "./MemberAttendanceRow";
+import { applyAttendanceStatuses, MemberWithStatus } from "../attendanceStatus";
 
 interface EditAttendanceMarkingProps {
   classNumber: number;
@@ -11,11 +12,6 @@ interface EditAttendanceMarkingProps {
   initialMemberStatuses: Array<{ member_id: string; member_name: string; status: string }>;
   includeMemberEmail?: string;
   onBack: () => void;
-}
-
-interface MemberWithStatus extends Member {
-  attendanceStatus?: "present" | "absent";
-  absenceReason?: "S" | "D" | "B" | "";
 }
 
 const normalizeStatus = (value?: string) =>
@@ -40,65 +36,50 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const requestRef = React.useRef(0);
 
   useEffect(() => {
     loadMembers();
+    return () => { requestRef.current += 1; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classNumber, date, serviceType, includeMemberEmail]);
 
   const loadMembers = async () => {
+    const request = ++requestRef.current;
     setLoading(true);
+    setLoadFailed(false);
     setError(null);
     try {
       // Load class members and existing attendance records in parallel
       const [loadedMembers, fetchedStatuses] = await Promise.all([
         getClassMembers(classNumber, includeMemberEmail) as Promise<Member[]>,
         date
-          ? getMemberAttendanceForDateAndService(classNumber, date, serviceType).catch(() => [])
+          ? getMemberAttendanceForDateAndService(classNumber, date, serviceType)
           : Promise.resolve([] as Array<{ member_id: string; member_name: string; status: string; absence_reason?: string }>),
       ]);
 
       // Prefer freshly fetched statuses, fall back to any passed-in statuses
       const statusSource = fetchedStatuses.length > 0 ? fetchedStatuses : initialMemberStatuses;
 
-      const membersWithStatuses: MemberWithStatus[] = (loadedMembers as Member[]).map((member: Member) => {
-        const existingStatus = statusSource.find(
-          (s: { member_id: string; member_name: string; status: string; absence_reason?: string }) => {
-            const idMatch = String(s.member_id) === String(member.id);
-            const normalizedStoredName = s.member_name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
-            const normalizedMemberName = member.name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
-            const nameMatch = normalizedStoredName === normalizedMemberName;
-            return idMatch || nameMatch;
-          }
-        );
-
-        return {
-          ...member,
-          attendanceStatus: normalizeStatus(existingStatus?.status) === "present" ? "present" : "absent",
-          absenceReason:
-            normalizeStatus(existingStatus?.status) === "sick"
-              ? "S"
-              : normalizeStatus(existingStatus?.status) === "travel"
-              ? "D"
-              : normalizeAbsenceReason((existingStatus as any)?.absence_reason),
-        };
-      });
-
-      setMembers(membersWithStatuses);
+      if (request !== requestRef.current) return;
+      setMembers(applyAttendanceStatuses(loadedMembers, statusSource));
     } catch (err) {
+      if (request !== requestRef.current) return;
+      setLoadFailed(true);
       setError("Failed to load members: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   };
 
-  const updateMemberStatus = (memberId: string, status: string) => {
+  const updateMemberStatus = (memberId: string, status: "present" | "absent") => {
     setMembers((prevMembers) =>
       prevMembers.map((m) =>
-        m.id === memberId
+        m.id === memberId && !m.selfMarked
           ? {
               ...m,
-              attendanceStatus: status as any,
+              attendanceStatus: status,
               absenceReason: status === "present" ? "" : m.absenceReason || "",
             }
           : m
@@ -109,7 +90,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   const updateMemberAbsenceReason = (memberId: string, reason: "S" | "D" | "B" | "") => {
     setMembers((prevMembers) =>
       prevMembers.map((m) =>
-        m.id === memberId
+        m.id === memberId && !m.selfMarked
           ? { ...m, attendanceStatus: m.attendanceStatus === "present" ? "absent" : m.attendanceStatus, absenceReason: reason }
           : m
       )
@@ -117,6 +98,10 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
   };
 
   const handleSave = async () => {
+    if (loading || loadFailed) {
+      setError("Attendance must finish loading successfully before saving.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -264,6 +249,8 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
               phoneNumber={member.phoneNumber}
               attendanceStatus={member.attendanceStatus}
               absenceReason={member.absenceReason}
+              selfMarked={member.selfMarked}
+              disabled={saving || loadFailed}
               onStatusChange={updateMemberStatus}
               onAbsenceReasonChange={updateMemberAbsenceReason}
               onEdit={() => {}}
@@ -283,7 +270,7 @@ export const EditAttendanceMarking: React.FC<EditAttendanceMarkingProps> = ({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || loadFailed}
               className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed border border-blue-500"
             >
               {saving ? 'Saving...' : '💾 Save Changes'}

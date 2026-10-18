@@ -103,7 +103,42 @@ The app uses the same Supabase database as the main GMCT management system:
 - `members` - For class member information
 - `attendance` - For attendance records
 
+### Member Self-Attendance
+
+Run [`sql/2026-09-28_add_member_self_attendance.sql`](sql/2026-09-28_add_member_self_attendance.sql)
+in the Supabase SQL Editor to install or update the self-attendance function.
+The script can be rerun and preserves existing attendance records and configured
+church location settings.
+
+If marking attendance reports `column "is_active" does not exist` (or the same
+error for `active`), rerun the corrected script above against the database used
+by the app. The function supports either member status column name, giving
+`active` precedence when both exist. This is a database-side repair; rebuilding
+the app alone will not update the function.
+
+Self-attendance requires an internet connection, a signed-in active member,
+and location permission. It is available on Sundays in the configured church
+timezone, within the configured attendance radius.
+
+Self-marked attendance appears as **Present (protected)** in the class leader's
+Sunday attendance list and edit screen. Leaders can mark other members normally,
+but cannot change a self-marked member to Absent, Sick, or Travel. Database
+triggers preserve these entries even if a leader submits an older, already-open
+screen, and recalculate the class totals from the saved member statuses.
+
+After updating this feature, rerun the entire SQL script above and deploy the
+updated app. The SQL adds a self-attendance timestamp and protects identifiable
+existing self-attendance entries in records still labelled `Member self-attendance`.
+Older entries in leader-labelled records cannot reliably be distinguished from
+leader-marked attendance; those members can confirm self-attendance again while
+eligible to establish protection.
+
 ## Development
+
+Run `npm run test:attendance` for self-attendance regression tests. These use an
+isolated in-memory PostgreSQL database, not your live Supabase database, and cover
+leader-first/self-first saves, stale leader submissions, protected statuses,
+summary totals, schema compatibility, and member list status mapping.
 
 ### Tech Stack
 

@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect } from "react";
-import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService, checkWeeklyAttendance } from "../supabase";
+import { getClassMembers, saveMember, deleteMember, saveAttendance, getAttendanceByDateAndService, getMemberAttendanceForDateAndService, checkWeeklyAttendance } from "../supabase";
 import { Member, ServiceType } from "../types";
 import { BarChart3, Calendar, Plus, WifiOff, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
 import { MemberAttendanceRow } from "./MemberAttendanceRow";
+import { applyAttendanceStatuses, MemberWithStatus } from "../attendanceStatus";
 
 interface AttendanceMarkingProps {
   classNumber: number;
@@ -14,11 +15,6 @@ interface AttendanceMarkingProps {
   initialServiceType?: string;
   initialMemberStatuses?: Array<{ member_id: string; member_name: string; status: string }>;
   isEditMode?: boolean;
-}
-
-interface MemberWithStatus extends Member {
-  attendanceStatus?: "present" | "absent";
-  absenceReason?: "S" | "D" | "B" | "";
 }
 
 interface MemberFormData {
@@ -46,7 +42,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   includeMemberEmail,
   initialDate,
   initialServiceType,
-  initialMemberStatuses,
   isEditMode: isEditModeProp,
 }) => {
   // Helper function to get local date string in YYYY-MM-DD format
@@ -66,8 +61,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     return normalized === "S" || normalized === "D" || normalized === "B" ? normalized : "";
   };
 
-  const [serviceType, setServiceType] = useState<ServiceType>("bible-study");
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  const [serviceType, setServiceType] = useState<ServiceType>(initialServiceType as ServiceType || "bible-study");
+  const [selectedDate, setSelectedDate] = useState(initialDate || getLocalDateString());
   const [members, setMembers] = useState<MemberWithStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +72,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   const [editingMember, setEditingMember] = useState<MemberFormData | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectionChanged, setSelectionChanged] = useState(false);
-  const initialStatusesAppliedRef = React.useRef(false);
-  const previousInitialStatusesRef = React.useRef<{ prevKey?: string | undefined }>({});
+  const attendanceRequestRef = React.useRef(0);
+  const [attendanceLoadFailed, setAttendanceLoadFailed] = useState(false);
   const [memberFormData, setMemberFormData] = useState<MemberFormData>({
     name: "",
     member_number: "",
@@ -105,7 +100,6 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   useEffect(() => {
-    loadMembers();
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     
@@ -115,14 +109,13 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [classNumber, includeMemberEmail]);
+  }, []);
 
   // Set initial date and service type if provided (for editing records)
   // This triggers first when editing
   useEffect(() => {
     if (initialDate) {
       console.log('Edit mode detected, setting date and service type');
-      // Set isEditMode FIRST before changing dates so the loadAttendanceRecord effect sees it
       setIsEditMode(true);
       setSelectedDate(initialDate);
     }
@@ -131,110 +124,12 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     }
   }, [initialDate, initialServiceType]);
 
-  // Apply initial member statuses when editing an existing record
-  // Wait for BOTH members to load AND initialMemberStatuses to arrive
-  // Only apply once per edit session (track with ref)
-  useEffect(() => {
-    console.log('=== INITIAL STATUS EFFECT TRIGGERED ===');
-    console.log('initialMemberStatuses:', initialMemberStatuses);
-    console.log('members.length:', members.length);
-    console.log('initialStatusesAppliedRef.current:', initialStatusesAppliedRef.current);
-    
-    if (!initialMemberStatuses || initialMemberStatuses.length === 0) {
-      console.log('❌ No initial member statuses provided');
-      initialStatusesAppliedRef.current = false;
-      previousInitialStatusesRef.current = { prevKey: undefined };
-      return;
-    }
-
-    // Check if this is a new batch of initialMemberStatuses (editing a different record)
-    // Use count and first element to detect new sessions since array reference changes each time
-    const statusKey = initialMemberStatuses.length > 0 
-      ? `${initialMemberStatuses.length}-${initialMemberStatuses[0]?.member_id}`
-      : '';
-    const prevKey = previousInitialStatusesRef.current?.prevKey || '';
-    
-    if (statusKey !== prevKey) {
-      console.log('🔄 New initialMemberStatuses detected, resetting ref for new edit session');
-      console.log(`   Old key: ${prevKey}, New key: ${statusKey}`);
-      initialStatusesAppliedRef.current = false;
-      previousInitialStatusesRef.current = { prevKey: statusKey };
-    }
-
-    // Don't apply if already applied in this session
-    if (initialStatusesAppliedRef.current) {
-      console.log('⏭️ Already applied initial statuses, skipping');
-      return;
-    }
-
-    // Wait for members to load
-    if (members.length === 0) {
-      console.log('⏳ Waiting for members to load before applying initial statuses...');
-      return;
-    }
-
-    console.log('✅ Ready to apply! Initial statuses:', initialMemberStatuses);
-    console.log('✅ Current members:', members.map(m => ({ id: m.id, name: m.name, idType: typeof m.id })));
-    console.log('✅ Initial statuses details:', initialMemberStatuses.map(s => ({ 
-      member_id: s.member_id, 
-      member_id_type: typeof s.member_id,
-      member_name: s.member_name, 
-      status: s.status 
-    })));
-
-    const updatedMembers: MemberWithStatus[] = members.map((member) => {
-      const existingStatus = initialMemberStatuses.find(
-        (s) => {
-          const idMatch = String(s.member_id) === String(member.id);
-          // Normalize both names: lowercase, trim, and collapse multiple spaces
-          const normalizedStoredName = s.member_name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
-          const normalizedMemberName = member.name?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
-          const nameMatch = normalizedStoredName === normalizedMemberName;
-          console.log(`  Checking ${member.name} (id: ${member.id}, idType: ${typeof member.id})`);
-          console.log(`    Against: member_id=${s.member_id} (type: ${typeof s.member_id}), member_name=${s.member_name}`);
-          console.log(`    Normalized: "${normalizedMemberName}" vs "${normalizedStoredName}"`);
-          console.log(`    idMatch=${idMatch}, nameMatch=${nameMatch}`);
-          return idMatch || nameMatch;
-        }
-      );
-      
-      if (existingStatus) {
-        console.log(`  ✅ → Matched ${member.name}: status=${existingStatus.status}, normalized=${normalizeStatus(existingStatus.status)}`);
-      } else {
-        console.log(`  ❌ → No match for ${member.name}, setting to absent`);
-      }
-      
-        return {
-          ...member,
-          attendanceStatus: normalizeStatus(existingStatus?.status) === "present" ? ("present" as const) : ("absent" as const),
-          absenceReason:
-            normalizeStatus(existingStatus?.status) === "sick"
-              ? "S"
-              : normalizeStatus(existingStatus?.status) === "travel"
-              ? "D"
-              : normalizeAbsenceReason((existingStatus as any)?.absence_reason),
-        };
-    });
-    
-    console.log('📝 Updated members with statuses:', updatedMembers.map(m => ({ name: m.name, status: m.attendanceStatus })));
-    setMembers(updatedMembers);
-    setSelectionChanged(false);
-    setIsEditMode(true);
-    
-    // Mark that we've applied the initial statuses
-    initialStatusesAppliedRef.current = true;
-    console.log('=== INITIAL STATUS EFFECT COMPLETE ===');
-  }, [initialMemberStatuses, members.length]);
-
   // Load attendance for the selected date and service type
   useEffect(() => {
-    // Reset modal when date/service changes
     setShowDuplicateModal(false);
-    // Skip loading if in edit mode OR if we have initial member statuses (means we're editing)
-    if (!isEditMode && !initialMemberStatuses) {
-      loadAttendanceRecord();
-    }
-  }, [selectedDate, serviceType, isEditMode, initialMemberStatuses]);
+    loadAttendanceRecord();
+    return () => { attendanceRequestRef.current += 1; };
+  }, [classNumber, includeMemberEmail, selectedDate, serviceType]);
 
   // Ensure date is always today's date (in case app runs past midnight)
   useEffect(() => {
@@ -251,66 +146,42 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     return () => clearInterval(checkDateUpdate);
   }, [selectedDate, isEditMode]);
 
-  const loadMembers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const loadedMembers = await getClassMembers(classNumber, includeMemberEmail);
-      console.log('📥 Loaded members from DB:', loadedMembers);
-      const membersWithStatus: MemberWithStatus[] = (loadedMembers as Member[]).map((m) => ({
-        ...m,
-        attendanceStatus: "absent" as const,
-        absenceReason: "",
-      }));
-      console.log('📝 Members with status initialized:', membersWithStatus.map(m => ({ id: m.id, name: m.name })));
-      setMembers(membersWithStatus);
-    } catch (err) {
-      setError(
-        "Failed to load members: " +
-          (err instanceof Error ? err.message : "Unknown error")
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadMembers = () => loadAttendanceRecord();
 
   const loadAttendanceRecord = async () => {
+    const request = ++attendanceRequestRef.current;
     setAttendanceLoading(true);
+    setAttendanceLoadFailed(false);
+    setError(null);
     setWeeklyDuplicateWarning(null);
     try {
-      // Check for attendance on the exact date/service combo
-      const record = await getAttendanceByDateAndService(classNumber, selectedDate, serviceType);
+      const [loadedMembers, statuses, record, weeklyRecord] = await Promise.all([
+        getClassMembers(classNumber, includeMemberEmail),
+        getMemberAttendanceForDateAndService(classNumber, selectedDate, serviceType),
+        getAttendanceByDateAndService(classNumber, selectedDate, serviceType),
+        checkWeeklyAttendance(classNumber, selectedDate, serviceType),
+      ]);
+      if (request !== attendanceRequestRef.current) return;
+      setMembers(applyAttendanceStatuses(loadedMembers as Member[], statuses));
       setExistingAttendance(record);
-      
-      // Skip duplicate warning check if in edit mode
-      if (!isEditMode) {
-        // Also check for any attendance in the same week for this service type
-        const weeklyRecord = await checkWeeklyAttendance(classNumber, selectedDate, serviceType);
-        
-        if (weeklyRecord) {
-          // There's attendance in this week for the same service type
-          setWeeklyDuplicateWarning({
-            date: weeklyRecord.attendance_date,
-            totalMembers: weeklyRecord.total_members_present || 0,
-            hasOtherRecord: true
-          });
-        }
-      }
-      
-      if (record && !isEditMode) {
-        // Update member statuses based on existing attendance
-        // ONLY reset if NOT in edit mode - in edit mode, we already have the correct statuses from initial data
-        setMembers(members =>
-          members.map(m => ({
-            ...m,
-            attendanceStatus: "absent" as const, // Default to absent since we don't track individual statuses
-          }))
-        );
+      setSelectionChanged(false);
+      setIsEditMode(Boolean(record) || Boolean(isEditModeProp));
+      if (weeklyRecord && !record && !isEditModeProp) {
+        setWeeklyDuplicateWarning({
+          date: weeklyRecord.attendance_date,
+          totalMembers: weeklyRecord.total_members_present || 0,
+          hasOtherRecord: true
+        });
       }
     } catch (err) {
+      if (request !== attendanceRequestRef.current) return;
       console.error('Error loading attendance:', err);
+      setAttendanceLoadFailed(true);
+      setSuccess(null);
+      setError("Failed to load attendance. Reload before saving: " +
+        (err instanceof Error ? err.message : "Unable to read attendance records"));
     } finally {
-      setAttendanceLoading(false);
+      if (request === attendanceRequestRef.current) setAttendanceLoading(false);
     }
   };
 
@@ -326,7 +197,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
     };
   };
 
-  const updateMemberStatus = (memberId: string, status: string) => {
+  const updateMemberStatus = (memberId: string, status: "present" | "absent") => {
+    if (attendanceLoading || attendanceLoadFailed || members.find(m => String(m.id) === memberId)?.selfMarked) return;
     // If duplicate warning exists, show modal and block selection
     if (weeklyDuplicateWarning?.hasOtherRecord) {
       setShowDuplicateModal(true);
@@ -339,7 +211,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         String(m.id) === String(memberId)
           ? {
               ...m,
-              attendanceStatus: status as any,
+              attendanceStatus: status,
               absenceReason: status === "present" ? "" : m.absenceReason || "",
             }
           : m
@@ -349,6 +221,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const updateMemberAbsenceReason = (memberId: string, reason: "S" | "D" | "B" | "") => {
+    if (attendanceLoading || attendanceLoadFailed || members.find(m => String(m.id) === memberId)?.selfMarked) return;
     setMembers((prevMembers) =>
       prevMembers.map((m) =>
         String(m.id) === String(memberId)
@@ -500,6 +373,10 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
   };
 
   const handleSubmitAttendance = async () => {
+    if (attendanceLoading || attendanceLoadFailed) {
+      setError("Attendance must finish loading successfully before saving.");
+      return;
+    }
     console.log("=== ATTENDANCE SUBMISSION STARTED ===");
     console.log("Class:", classNumber);
     console.log("Service Type:", serviceType);
@@ -576,16 +453,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
       setWeeklyDuplicateWarning(null);
       setShowDuplicateModal(false);
       
-      // Only reset statuses if NOT in edit mode
-      if (!isEditMode) {
-        setMembers(
-          members.map((m) => ({ ...m, attendanceStatus: "absent" as const, absenceReason: "" }))
-        );
-        setSelectionChanged(false);
-      } else {
-        // In edit mode, clear edit mode after successful update
-        setIsEditMode(false);
-      }
+      await loadAttendanceRecord();
       
       // Keep success message visible for 7 seconds
       setTimeout(() => setSuccess(null), 7000);
@@ -665,6 +533,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 <label className="text-xs font-medium text-slate-400 mb-1.5 block">Service</label>
                 <select
                   value={serviceType}
+                  disabled={loading}
                   onChange={(e) => {
                     setServiceType(e.target.value as ServiceType);
                     setSelectionChanged(false);
@@ -1072,7 +941,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
         )}
 
         {/* Members List */}
-        {loading && members.length === 0 ? (
+        {(loading || attendanceLoading) && members.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <div className="text-sm font-medium">Loading members...</div>
           </div>
@@ -1102,6 +971,8 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                 phoneNumber={member.phoneNumber}
                 attendanceStatus={member.attendanceStatus}
                 absenceReason={member.absenceReason}
+                selfMarked={member.selfMarked}
+                disabled={loading || attendanceLoading || attendanceLoadFailed}
                 onStatusChange={updateMemberStatus}
                 onAbsenceReasonChange={updateMemberAbsenceReason}
                 onEdit={() => handleEditMember(member)}
@@ -1162,7 +1033,7 @@ export const AttendanceMarking: React.FC<AttendanceMarkingProps> = ({
                     });
                     handleSubmitAttendance();
                   }}
-                  disabled={loading || !!serviceDateWarning || !!weeklyDuplicateWarning?.hasOtherRecord}
+                  disabled={loading || attendanceLoading || attendanceLoadFailed || !!serviceDateWarning || !!weeklyDuplicateWarning?.hasOtherRecord}
                   className={`flex-1 px-6 py-4 rounded-xl font-bold transition-all shadow-2xl border-2 flex items-center justify-center gap-2 text-lg ${
                     loading
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 animate-pulse'
