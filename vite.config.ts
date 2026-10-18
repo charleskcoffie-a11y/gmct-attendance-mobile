@@ -2,9 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const base = process.env.GITHUB_ACTIONS === 'true' ? '/gmct-attendance-mobile/' : '/'
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/',
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -18,8 +20,8 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: base,
+        start_url: base,
         icons: [
           {
             src: 'pwa-512x512.svg',

@@ -184,21 +184,9 @@ netlify deploy --prod
 
 ### Option 3: GitHub Pages
 
-Add to `vite.config.ts`:
-
-```ts
-export default defineConfig({
-  base: '/gmct-attendance-mobile/',
-  // ... rest of config
-})
-```
-
-Then deploy:
-
-```bash
-npm run build
-# Upload dist folder to GitHub Pages
-```
+Push to `main` to trigger the GitHub Pages deployment workflow. In GitHub
+Actions, the build uses `/gmct-attendance-mobile/` for application assets and
+PWA scope/start URL. Local and Netlify builds continue to use `/`.
 
 ## Troubleshooting
 
