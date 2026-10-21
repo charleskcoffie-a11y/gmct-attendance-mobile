@@ -9,7 +9,7 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 async function compile(path) {
   const source = await readFile(new URL(path, import.meta.url), 'utf8');
-  return ts.transpileModule(source, {
+  return ts.transpileModule(source.replaceAll('import.meta.env.BASE_URL', "'/'"), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020,
       jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
@@ -143,6 +143,17 @@ test('first installation does not prompt as an update without an existing contro
   watcher.stop();
 });
 
+test('another window activating an update offers a reload without reloading automatically', async () => {
+  const watcher = createWatcher(async () => {});
+  await flush();
+  watcher.registration.active = { state: 'activated' };
+  watcher.navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.equal(watcher.ready(), 1);
+  watcher.stop();
+  watcher.navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.equal(watcher.ready(), 1);
+});
+
 test('update activation reloads only after controller changes and reports timeout/errors', async () => {
   const serviceWorker = new EventTarget();
   let timeout;
@@ -156,7 +167,9 @@ test('update activation reloads only after controller changes and reports timeou
   new Function('exports', 'window', 'navigator', watcherCode)(exports, window, { serviceWorker });
   await assert.rejects(exports.applyAppUpdate({}), /no longer waiting/);
   const posted = [];
-  const registration = { waiting: { postMessage(message) { posted.push(message); } } };
+  const worker = new EventTarget();
+  worker.postMessage = message => posted.push(message);
+  const registration = { waiting: worker };
   const updating = exports.applyAppUpdate(registration);
   assert.equal(reloads, 0);
   assert.deepEqual(posted, [{ type: 'SKIP_WAITING' }]);
@@ -168,10 +181,23 @@ test('update activation reloads only after controller changes and reports timeou
   await assert.rejects(expired, /did not activate/);
   serviceWorker.dispatchEvent(new Event('controllerchange'));
   assert.equal(reloads, 1);
-  await assert.rejects(exports.applyAppUpdate({
-    waiting: { postMessage() { throw new Error('Message failed'); } },
-  }), /Message failed/);
+  const failedWorker = new EventTarget();
+  failedWorker.postMessage = () => { throw new Error('Message failed'); };
+  await assert.rejects(exports.applyAppUpdate({ waiting: failedWorker }), /Message failed/);
   assert.equal(timeout, undefined);
+  const fallback = exports.applyAppUpdate(registration);
+  worker.state = 'activated';
+  worker.dispatchEvent(new Event('statechange'));
+  await fallback;
+  assert.equal(reloads, 2);
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.equal(reloads, 2);
+  await exports.applyAppUpdate({ active: { state: 'activated' } });
+  assert.equal(reloads, 3);
+  const redundant = exports.applyAppUpdate(registration);
+  worker.state = 'redundant';
+  worker.dispatchEvent(new Event('statechange'));
+  await assert.rejects(redundant, /could not be installed/);
 });
 
 const updatesCode = await compile('../src/components/AppUpdates.tsx');
@@ -179,23 +205,20 @@ function updateControls({ ready = false, online = true, confirm = true, registra
   let updated = 0;
   const messages = [];
   let options;
+  let stateIndex = 0;
+  let refIndex = 0;
+  const registerCalls = [];
+  let watches = 0;
+  let stops = 0;
   const exports = {};
   const fakeRequire = name => {
     if (name === 'react') return {
-      useRef: () => ({ current: registration }),
-      useState: initial => [initial, value => messages.push(value)],
-      useEffect() {},
-    };
-    if (name === 'virtual:pwa-register/react') return {
-      useRegisterSW(value) {
-        options = value;
-        return {
-          needRefresh: [ready, value => messages.push(value)],
-        };
-      },
+      useRef: () => ({ current: refIndex++ === 0 ? registration : undefined }),
+      useState: initial => [stateIndex++ === 3 ? ready : initial, value => messages.push(value)],
+      useEffect(effect) { options = effect; },
     };
     if (name === '../services/appUpdateService') return {
-      watchAppUpdates() { return () => {}; },
+      watchAppUpdates() { watches++; return () => { stops++; }; },
       async applyAppUpdate() {
         updated++;
         if (failUpdate) throw new Error('Update failed');
@@ -204,14 +227,41 @@ function updateControls({ ready = false, online = true, confirm = true, registra
     return require(name);
   };
   new Function('require', 'exports', 'navigator', 'window', '__APP_VERSION__', updatesCode)(
-    fakeRequire, exports, { serviceWorker: {}, onLine: online },
+    fakeRequire, exports, {
+      serviceWorker: {
+        register(url, config) {
+          registerCalls.push({ url, config });
+          return Promise.resolve(registration);
+        },
+      },
+      onLine: online,
+    },
     { confirm(text) { assert.match(text, /Unsaved changes will be lost/); return confirm; } },
     '1.0.1',
   );
   const tree = exports.default();
   const button = tree.props.children[0].props.children[1];
-  return { tree, button, messages, options: () => options, updated: () => updated };
+  return {
+    tree, button, messages, options: () => options, updated: () => updated,
+    registerCalls, watches: () => watches, stops: () => stops,
+  };
 }
+
+test('native registration bypasses HTTP worker cache and cancels late registration callbacks', async () => {
+  const controls = updateControls({ registration: {} });
+  const cleanup = controls.options()();
+  await flush();
+  assert.deepEqual(controls.registerCalls, [{
+    url: '/sw.js', config: { scope: '/', updateViaCache: 'none' },
+  }]);
+  assert.equal(controls.watches(), 1);
+  cleanup();
+  assert.equal(controls.stops(), 1);
+  const cancelled = updateControls({ registration: {} });
+  cancelled.options()()();
+  await flush();
+  assert.equal(cancelled.watches(), 0);
+});
 
 test('update controls are touch-sized, available without login, and require confirmation', async () => {
   const controls = updateControls({ ready: true, registration: {} });
@@ -276,5 +326,7 @@ test('PWA waits for user approval and cleans obsolete precaches', async () => {
     throw new Error(`Unexpected import ${name}`);
   }, exports);
   assert.equal(options.registerType, 'prompt');
+  assert.equal(options.injectRegister, false);
+  assert.equal(options.workbox.clientsClaim, true);
   assert.equal(options.workbox.cleanupOutdatedCaches, true);
 });

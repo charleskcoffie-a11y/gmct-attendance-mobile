@@ -4,9 +4,11 @@ export function watchAppUpdates(
   onReady: () => void = () => {}
 ): () => void {
   let checking = false;
+  const originalController = navigator.serviceWorker.controller;
   const workers = new Set<ServiceWorker>();
   const detectWaiting = () => {
     if (registration.waiting && navigator.serviceWorker.controller) onReady();
+    if (originalController && registration.active && registration.active !== originalController) onReady();
   };
   const watchInstalling = () => {
     const worker = registration.installing;
@@ -34,6 +36,7 @@ export function watchAppUpdates(
   window.addEventListener('pageshow', onVisible);
   document.addEventListener('visibilitychange', onVisible);
   registration.addEventListener('updatefound', watchInstalling);
+  navigator.serviceWorker.addEventListener('controllerchange', detectWaiting);
   watchInstalling();
   const interval = window.setInterval(onVisible, 60 * 60 * 1000);
   void check();
@@ -43,6 +46,7 @@ export function watchAppUpdates(
     window.removeEventListener('pageshow', onVisible);
     document.removeEventListener('visibilitychange', onVisible);
     registration.removeEventListener('updatefound', watchInstalling);
+    navigator.serviceWorker.removeEventListener('controllerchange', detectWaiting);
     for (const worker of workers) worker.removeEventListener('statechange', detectWaiting);
     window.clearInterval(interval);
   };
@@ -50,21 +54,36 @@ export function watchAppUpdates(
 
 export async function applyAppUpdate(registration: ServiceWorkerRegistration): Promise<void> {
   const worker = registration.waiting;
-  if (!worker) throw new Error('The update is no longer waiting. Check for updates again.');
+  if (!worker) {
+    if (registration.active?.state === 'activated') {
+      window.location.reload();
+      return;
+    }
+    throw new Error('The update is no longer waiting. Check for updates again.');
+  }
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       window.clearTimeout(timeout);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      worker.removeEventListener('statechange', onStateChange);
     };
     const onControllerChange = () => {
       cleanup();
       resolve();
+    };
+    const onStateChange = () => {
+      if (worker.state === 'activated') onControllerChange();
+      else if (worker.state === 'redundant') {
+        cleanup();
+        reject(new Error('The update could not be installed. Check for updates and try again.'));
+      }
     };
     const timeout = window.setTimeout(() => {
       cleanup();
       reject(new Error('The update did not activate. Close all app windows and reopen while online.'));
     }, 20000);
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    worker.addEventListener('statechange', onStateChange);
     try {
       worker.postMessage({ type: 'SKIP_WAITING' });
     } catch (error) {

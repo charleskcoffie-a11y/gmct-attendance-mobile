@@ -233,6 +233,9 @@ PWA scope/start URL. Local and Netlify builds continue to use `/`.
   that were already downloaded while the app was closed or in the background.
 - **Version** beneath the update controls identifies the code currently running,
   not just the latest code on the server. Production builds use the package version.
+- Update activation has one reload handler, with both controller-change and
+  worker-activation detection. If an update has already activated, **Update now**
+  reloads the app to use it instead of leaving a stale update notice.
 - If a screen cannot load after a deployment, use **Reload app** on the recovery
   screen. Reloading does not clear your sign-in or saved offline attendance.
   Unsaved edits do not survive a reload.

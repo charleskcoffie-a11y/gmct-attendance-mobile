@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { applyAppUpdate, watchAppUpdates } from '../services/appUpdateService';
 
 export default function AppUpdates() {
@@ -8,20 +7,29 @@ export default function AppUpdates() {
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState('');
+  const [needRefresh, setNeedRefresh] = useState(false);
   const reportError = (error: unknown) => {
     console.error('App update failed:', error);
     setMessage(error instanceof Error ? error.message : 'App update failed. Check your connection and try again.');
   };
-  const { needRefresh: [needRefresh, setNeedRefresh] } = useRegisterSW({
-    onRegisteredSW(_url, registration) {
-      if (!registration) return;
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    let cancelled = false;
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
+      scope: import.meta.env.BASE_URL,
+      updateViaCache: 'none',
+    }).then(registration => {
+      if (cancelled) return;
       registrationRef.current = registration;
-      stopWatchingRef.current?.();
       stopWatchingRef.current = watchAppUpdates(registration, reportError, () => setNeedRefresh(true));
-    },
-    onRegisterError: reportError,
-  });
-  useEffect(() => () => stopWatchingRef.current?.(), []);
+    }).catch(error => {
+      if (!cancelled) reportError(error);
+    });
+    return () => {
+      cancelled = true;
+      stopWatchingRef.current?.();
+    };
+  }, []);
 
   const checkForUpdate = async () => {
     if (!navigator.onLine) {
