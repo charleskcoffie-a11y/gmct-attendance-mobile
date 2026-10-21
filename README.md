@@ -231,6 +231,8 @@ PWA scope/start URL. Local and Netlify builds continue to use `/`.
 - A prominent **New update available** notice appears at the bottom when an
   update is ready. Tap **Update now** after saving. This also detects updates
   that were already downloaded while the app was closed or in the background.
+- **Version** beneath the update controls identifies the code currently running,
+  not just the latest code on the server. Production builds use the package version.
 - If a screen cannot load after a deployment, use **Reload app** on the recovery
   screen. Reloading does not clear your sign-in or saved offline attendance.
   Unsaved edits do not survive a reload.

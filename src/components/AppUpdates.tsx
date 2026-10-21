@@ -82,6 +82,9 @@ export default function AppUpdates() {
           {updating ? 'Updating...' : needRefresh ? 'Update now' : checking ? 'Checking...' : 'Check for updates'}
         </button>
       </div>
+      <p className="mt-1 text-xs text-slate-400" aria-label="Installed app version">
+        Version {__APP_VERSION__}
+      </p>
       {needRefresh && message && <p role="alert" className="mt-2 text-sm text-amber-200">{message}</p>}
     </aside>
   );

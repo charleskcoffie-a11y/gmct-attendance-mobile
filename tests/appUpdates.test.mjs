@@ -203,9 +203,10 @@ function updateControls({ ready = false, online = true, confirm = true, registra
     };
     return require(name);
   };
-  new Function('require', 'exports', 'navigator', 'window', updatesCode)(
+  new Function('require', 'exports', 'navigator', 'window', '__APP_VERSION__', updatesCode)(
     fakeRequire, exports, { serviceWorker: {}, onLine: online },
     { confirm(text) { assert.match(text, /Unsaved changes will be lost/); return confirm; } },
+    '1.0.1',
   );
   const tree = exports.default();
   const button = tree.props.children[0].props.children[1];
@@ -220,6 +221,8 @@ test('update controls are touch-sized, available without login, and require conf
   assert.match(markup, /fixed inset-x-3 bottom-4/);
   assert.match(markup, /Save your work/);
   assert.match(markup, /min-h-\[44px\]/);
+  assert.match(markup, /Installed app version/);
+  assert.match(markup, /Version 1\.0\.1/);
   controls.button.props.onClick();
   await flush();
   assert.equal(controls.updated(), 1);

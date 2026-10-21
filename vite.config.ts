@@ -7,6 +7,9 @@ const base = process.env.GITHUB_ACTIONS === 'true' ? '/gmct-attendance-mobile/' 
 // https://vitejs.dev/config/
 export default defineConfig({
   base,
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || 'development')
+  },
   plugins: [
     react(),
     VitePWA({
