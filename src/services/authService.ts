@@ -2,7 +2,7 @@
 // Handles member authentication using Supabase Auth with email format: {classNumber}@gmct.member
 
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../supabase';
+import { getActiveLeaderAssignments, supabase } from '../supabase';
 import { Member } from '../types';
 
 interface ClassLeaderMapping {
@@ -324,7 +324,7 @@ export class AuthService {
       const candidateSet = prioritizedById.length > 0 ? prioritizedById : memberRows;
       const data = candidateSet.find((row) => row.active === true) || candidateSet[0];
 
-      const leaderMapping = await this.resolveClassLeaderMapping(user.email);
+      const leaderMapping = await this.resolveClassLeaderMapping(data.id, user.email);
 
       const member: Member = {
         id: data.id,
@@ -431,54 +431,24 @@ export class AuthService {
   }
 
   /**
-   * Resolve class-leader mapping using explicit identity only.
-   * A member becomes a class leader only when their auth email matches
-   * an active class_leaders.email entry.
+   * Use the same member-number/email resolution as the attendance roster.
    */
-  private async resolveClassLeaderMapping(authEmail: string): Promise<ClassLeaderMapping> {
+  private async resolveClassLeaderMapping(memberId: string, authEmail: string): Promise<ClassLeaderMapping> {
     const normalizedEmail = this.normalizeIdentifier(authEmail);
     if (!normalizedEmail) return {};
     const emailLocalPart = normalizedEmail.split('@')[0] || '';
 
-    let leader: any | null = null;
-
-    const { data: emailMatches, error: emailError } = await supabase
-      .from('class_leaders')
-      .select('id, class_number, full_name, username, email, active')
-      .eq('active', true)
-      .ilike('email', normalizedEmail)
-      .limit(1);
-
-    if (!emailError && emailMatches && emailMatches.length > 0) {
-      leader = emailMatches[0];
+    const assignments = await getActiveLeaderAssignments();
+    const matches = assignments.filter(({ member }) => member && String(member.id) === memberId);
+    if (new Set(matches.map(({ leader }) => Number(leader.class_number))).size > 1) {
+      throw new Error('Conflicting class leader assignments. Check Admin Settings.');
     }
-
-    // Fallback for leader accounts configured with username but missing email.
-    if (!leader && emailLocalPart) {
-      const { data: usernameMatches, error: usernameError } = await supabase
-        .from('class_leaders')
-        .select('id, class_number, full_name, username, email, active')
-        .eq('active', true)
-        .ilike('username', emailLocalPart)
-        .limit(1);
-
-      if (!usernameError && usernameMatches && usernameMatches.length > 0) {
-        leader = usernameMatches[0];
-      }
-    }
-
-    if (!leader && emailLocalPart) {
-      const { data: classNumberMatches, error: classNumberError } = await supabase
-        .from('class_leaders')
-        .select('id, class_number, full_name, username, email, active')
-        .eq('active', true)
-        .ilike('class_number', emailLocalPart)
-        .limit(1);
-
-      if (!classNumberError && classNumberMatches && classNumberMatches.length > 0) {
-        leader = classNumberMatches[0];
-      }
-    }
+    const leader = matches[0]?.leader || assignments.find(({ leader, member }) =>
+      !member && emailLocalPart && (
+        this.normalizeIdentifier(leader.username) === emailLocalPart ||
+        String(leader.class_number) === emailLocalPart
+      )
+    )?.leader;
 
     if (!leader) {
       return {};

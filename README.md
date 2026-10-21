@@ -107,14 +107,21 @@ The app uses the same Supabase database as the main GMCT management system:
 
 An active class leader belongs to the class assigned in Admin Settings for
 attendance, even when their member number or normal class is different. The
-leader's email must match their member profile email. For example, member 938
+assignment identifies the member using their member number in the existing
+`{member_number}@gmct.member` leader email, or a uniquely matching profile email.
+The member-number identity takes precedence, so a changed or shared profile email
+does not move the wrong member. For example, member 938
 assigned to lead Class 1 appears in Class 1, not their normal Class 9. This
 applies to admin views, leader marking/editing, and class report member lists;
 the member number and normal class on the profile are not changed.
 
-Inactive leader assignments do not override the normal class. Multiple active
-assignments to different classes for the same email must be corrected before
-attendance can load.
+Continue using **Admin Settings > Class Leaders** to select a member and assign
+the class they lead; no new assignment screen or database column is needed.
+Selecting a member keeps their member-number identity in the leader record.
+
+Inactive leader assignments do not override the normal class. Ambiguous member
+identities and multiple active assignments to different classes for the same
+member must be corrected before attendance can load.
 
 Deploy the updated app for corrected attendance lists. Also rerun
 [`sql/2026-09-28_add_member_self_attendance.sql`](sql/2026-09-28_add_member_self_attendance.sql)

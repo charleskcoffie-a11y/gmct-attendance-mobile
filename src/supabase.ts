@@ -72,72 +72,121 @@ export async function validateClassAccessCode(accessCode: string): Promise<numbe
   return null;
 }
 
+interface LeaderAssignmentRow {
+  id: string;
+  email?: string | null;
+  class_number?: string | number | null;
+  full_name?: string | null;
+  username?: string | null;
+}
+
+const normalizeLeaderEmail = (email?: string | null) => email?.trim().toLowerCase() || '';
+const leaderMemberNumber = (email?: string | null) =>
+  normalizeLeaderEmail(email).match(/^([0-9]+)@gmct\.member$/)?.[1];
+
+// Legacy leader emails encode the member number, not necessarily their current email.
+export async function getActiveLeaderAssignments(): Promise<Array<{ leader: LeaderAssignmentRow; member?: Member }>> {
+  const { data, error } = await supabase
+    .from('class_leaders')
+    .select('id, email, class_number, full_name, username')
+    .eq('active', true);
+  if (error) {
+    console.error('Error fetching leader assignments:', error);
+    throw error;
+  }
+  const leaders: LeaderAssignmentRow[] = data || [];
+  const numbers = [...new Set(leaders.flatMap(leader => {
+    const number = leaderMemberNumber(leader.email);
+    return number ? [number] : [];
+  }))];
+  let numberedMembers: Member[] = [];
+  if (numbers.length > 0) {
+    const result = await supabase.from('members').select('*').in('member_number', numbers);
+    if (result.error) {
+      console.error('Error resolving leader member numbers:', result.error);
+      throw result.error;
+    }
+    numberedMembers = result.data || [];
+  }
+
+  return Promise.all(leaders.map(async leader => {
+    const number = leaderMemberNumber(leader.email);
+    let candidates = number
+      ? numberedMembers.filter(member => String(member.member_number) === number)
+      : [];
+    if (candidates.length === 0) {
+      const email = normalizeLeaderEmail(leader.email);
+      if (!email) return { leader };
+      const result = await supabase
+        .from('members')
+        .select('*')
+        .ilike('email', email.replace(/[\\%_]/g, '\\$&'));
+      if (result.error) {
+        console.error('Error resolving leader member email:', result.error);
+        throw result.error;
+      }
+      candidates = result.data || [];
+    }
+    if (candidates.length > 1) {
+      throw new Error(`Ambiguous member link for class leader ${leader.full_name || leader.id}. Check Admin Settings.`);
+    }
+    return { leader, member: candidates[0] };
+  }));
+}
+
 // Active leader assignments override a member's normal class for every viewer.
 export async function getClassMembers(classNumber: number, includeMemberEmail?: string): Promise<Member[]> {
-  const classNumberText = classNumber.toString();
-  const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() || '';
-  const [membersResult, leadersResult] = await Promise.all([
+  const [membersResult, leaderAssignments] = await Promise.all([
     supabase
       .from('members')
       .select('*')
-      .eq('class_number', classNumberText)
+      .eq('class_number', classNumber.toString())
       .eq('active', true)
       .order('name', { ascending: true }),
-    supabase
-      .from('class_leaders')
-      .select('email, class_number')
-      .eq('active', true)
+    getActiveLeaderAssignments()
   ]);
-
-  if (membersResult.error || leadersResult.error) {
-    const error = membersResult.error || leadersResult.error;
-    console.error('Error fetching class members or leader assignments:', error);
-    throw error;
+  if (membersResult.error) {
+    console.error('Error fetching class members:', membersResult.error);
+    throw membersResult.error;
   }
-
   const assignments = new Map<string, number>();
-  const leaders: Array<{ email: string | null; class_number: string | number | null }> = leadersResult.data || [];
-  for (const leader of leaders) {
-    const email = normalizeEmail(leader.email);
+  const extraMembers: Member[] = [];
+  for (const { leader, member } of leaderAssignments) {
     const assignedClass = Number(leader.class_number);
-    if (!email || !Number.isInteger(assignedClass) || assignedClass <= 0) continue;
-    if (assignments.has(email) && assignments.get(email) !== assignedClass) {
-      throw new Error(`Conflicting class leader assignments for ${email}`);
+    if (!member || !Number.isInteger(assignedClass) || assignedClass <= 0) continue;
+    const id = String(member.id);
+    if (assignments.has(id) && assignments.get(id) !== assignedClass) {
+      throw new Error(`Conflicting class leader assignments for ${member.name}`);
     }
-    assignments.set(email, assignedClass);
+    assignments.set(id, assignedClass);
+    if (assignedClass === classNumber && member.active === true) extraMembers.push(member);
   }
 
   const baseMembers: Member[] = membersResult.data || [];
-  const extraEmails = new Set(
-    [...assignments].filter(([, assignedClass]) => assignedClass === classNumber).map(([email]) => email)
+  const email = normalizeLeaderEmail(includeMemberEmail);
+  const alreadyIncluded = [...baseMembers, ...extraMembers].some(member => normalizeLeaderEmail(member.email) === email);
+  const assignedByEmail = leaderAssignments.some(({ member }) =>
+    member && normalizeLeaderEmail(member.email) === email && assignments.has(String(member.id))
   );
-  const normalizedIncludeEmail = normalizeEmail(includeMemberEmail);
-  if (normalizedIncludeEmail && !assignments.has(normalizedIncludeEmail)) {
-    extraEmails.add(normalizedIncludeEmail);
-  }
-  for (const member of baseMembers) {
-    extraEmails.delete(normalizeEmail(member.email));
-  }
-
-  const extraMembers = await Promise.all([...extraEmails].map(async email => {
+  if (email && !alreadyIncluded && !assignedByEmail) {
     const { data, error } = await supabase
       .from('members')
       .select('*')
       .eq('active', true)
       .ilike('email', email.replace(/[\\%_]/g, '\\$&'));
-
     if (error) {
-      console.error('Error fetching assigned class leader member:', error);
+      console.error('Error fetching included member:', error);
       throw error;
     }
-    return (data || []) as Member[];
-  }));
+    if (data?.length > 1) throw new Error('Multiple members share the included email. Check Admin Settings.');
+    extraMembers.push(...(data || []));
+  }
 
   const membersById = new Map<string, Member>();
-  for (const member of [...baseMembers, ...extraMembers.flat()]) {
-    const assignedClass = assignments.get(normalizeEmail(member.email));
-    if (assignedClass !== undefined && assignedClass !== classNumber) continue;
+  for (const member of [...baseMembers, ...extraMembers]) {
     const id = String(member.id);
+    const assignedClass = assignments.get(id);
+    if (assignedClass !== undefined && assignedClass !== classNumber) continue;
     membersById.set(id, {
       ...member,
       id,

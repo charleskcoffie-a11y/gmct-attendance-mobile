@@ -28,11 +28,15 @@ function classMemberService(members, leaders, failTable) {
       const filters = [];
       const query = {
         select(columns) {
-          if (table === 'class_leaders') assert.equal(columns, 'email, class_number');
+          if (table === 'class_leaders') assert.equal(columns, 'id, email, class_number, full_name, username');
           return query;
         },
         eq(column, value) {
           filters.push(row => row[column] === value);
+          return query;
+        },
+        in(column, values) {
+          filters.push(row => values.includes(row[column]));
           return query;
         },
         ilike(column, pattern) {
@@ -61,7 +65,7 @@ function classMemberService(members, leaders, failTable) {
     exports,
     { VITE_SUPABASE_URL: 'https://example.test', VITE_SUPABASE_ANON_KEY: 'test-key' },
   );
-  return exports.getClassMembers;
+  return Object.assign(exports.getClassMembers, { getActiveLeaderAssignments: exports.getActiveLeaderAssignments });
 }
 
 const rosterMembers = [
@@ -117,6 +121,71 @@ test('leader member email queries escape wildcard characters', async () => {
   assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['leader']);
 });
 
+test('existing admin assignments resolve changed emails and do not move other members sharing the email', async () => {
+  const members = [
+    { ...rosterMembers[0], email: 'james@example.test' },
+    { id: '201', member_number: '201', name: 'Okyere Samuel', email: '201@gmct.member', class_number: '2', active: true },
+    { id: '2009', member_number: '2009', name: 'Other member', email: '201@gmct.member', class_number: '20', active: true },
+  ];
+  const getClassMembers = classMemberService(members, [
+    { email: '938@gmct.member', class_number: 1, active: true },
+    { email: '201@gmct.member', class_number: 14, active: true },
+  ]);
+  assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['938']);
+  assert.deepEqual(await getClassMembers(9), []);
+  assert.deepEqual((await getClassMembers(14, '201@gmct.member')).map(m => m.id), ['201']);
+  assert.deepEqual(await getClassMembers(2), []);
+  assert.deepEqual((await getClassMembers(20)).map(m => m.id), ['2009']);
+  assert.deepEqual(await getClassMembers(20, '201@gmct.member'), [members[2]].map(m => ({
+    ...m, assignedClass: 20, phoneNumber: undefined,
+  })));
+});
+
+test('ambiguous member numbers and non-number emails are rejected instead of guessing', async () => {
+  for (const members of [
+    [rosterMembers[0], { ...rosterMembers[0], id: 'duplicate' }],
+    [
+      { ...rosterMembers[0], email: 'shared@example.test' },
+      { ...rosterMembers[1], email: 'shared@example.test' },
+    ],
+  ]) {
+    const getClassMembers = classMemberService(members, [{
+      email: members[0].email, class_number: 1, active: true,
+    }]);
+    await assert.rejects(getClassMembers(1), /Ambiguous member link/);
+  }
+});
+
+test('member-number resolution preserves unique email fallback for older leader records', async () => {
+  const getClassMembers = classMemberService([{
+    ...rosterMembers[0], member_number: '999',
+  }], [rosterLeaders[0]]);
+  assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['938']);
+});
+
+test('leader login mapping uses the same resolved member identity as attendance', async () => {
+  const members = [
+    { ...rosterMembers[0], email: 'james@example.test' },
+    { id: '201', member_number: '201', name: 'Samuel', email: '201@gmct.member', active: true },
+    { id: '2009', member_number: '2009', name: 'Other member', email: '201@gmct.member', active: true },
+  ];
+  const getClassMembers = classMemberService(members, [
+    { id: 'james-leader', email: '938@gmct.member', class_number: 1, active: true },
+    { id: 'samuel-leader', email: '201@gmct.member', class_number: 14, active: true },
+  ]);
+  const source = await readFile(new URL('../src/services/authService.ts', import.meta.url), 'utf8');
+  const code = ts.transpileModule(source.replaceAll('import.meta.env', 'testEnv'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const exports = {};
+  new Function('require', 'exports', code)(name =>
+    name === '../supabase' ? getClassMembers : createRequire(import.meta.url)(name), exports);
+  const service = new exports.AuthService();
+  assert.equal((await service.resolveClassLeaderMapping('938', 'james@example.test')).classNumber, 1);
+  assert.equal((await service.resolveClassLeaderMapping('201', '201@gmct.member')).classNumber, 14);
+  assert.deepEqual(await service.resolveClassLeaderMapping('2009', '201@gmct.member'), {});
+});
+
 test('roster query failures and conflicting assignments reject instead of returning incomplete attendance', async () => {
   for (const table of ['members', 'class_leaders']) {
     const getClassMembers = classMemberService(rosterMembers, rosterLeaders, table);
@@ -138,7 +207,7 @@ async function createDatabase(statusColumns = 'active BOOLEAN DEFAULT true') {
     CREATE FUNCTION auth.jwt() RETURNS JSONB LANGUAGE SQL AS
       $$ SELECT jsonb_build_object('email', current_setting('test.email', true)) $$;
     CREATE TABLE public.members (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, name TEXT,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, name TEXT, member_number TEXT,
       class_number TEXT, ${statusColumns}
     );
     CREATE TABLE public.app_settings (id TEXT PRIMARY KEY);
@@ -333,6 +402,44 @@ test('inactive and admin assignments do not override the normal self-attendance 
     `);
     const first = await markSelf(db);
     assert.equal((await db.query('SELECT class_number FROM public.attendance WHERE id = $1', [first.attendance_id])).rows[0].class_number, '1');
+  } finally {
+    await db.close();
+  }
+});
+
+test('self-attendance follows member-number assignments when profile emails have changed', async () => {
+  const db = await createDatabase();
+  try {
+    await db.exec(`
+      UPDATE public.members SET member_number = '938', class_number = '9' WHERE email = 'self@example.test';
+      INSERT INTO public.class_leaders(email, class_number) VALUES ('938@gmct.member', 1);
+    `);
+    const first = await markSelf(db);
+    assert.equal((await db.query('SELECT class_number FROM public.attendance WHERE id = $1', [first.attendance_id])).rows[0].class_number, '1');
+  } finally {
+    await db.close();
+  }
+});
+
+test('shared profile emails cannot assign a different member to the class leader role', async () => {
+  const db = await createDatabase();
+  try {
+    await db.exec(`
+      UPDATE public.members SET member_number = '201', class_number = '2' WHERE email = 'leader@example.test';
+      UPDATE public.members SET email = '201@gmct.member' WHERE member_number = '201';
+      UPDATE public.members SET member_number = '2009', email = '201@gmct.member', class_number = '20'
+        WHERE email = 'self@example.test';
+      INSERT INTO public.class_leaders(email, class_number) VALUES ('201@gmct.member', 14);
+      SELECT set_config('test.email', '201@gmct.member', false);
+    `);
+    // Give each profile the authenticated ID in turn to select the intended account.
+    const rows = (await db.query("SELECT id, member_number FROM public.members ORDER BY member_number")).rows;
+    for (const member of rows) {
+      await db.exec(`CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID LANGUAGE SQL AS $$ SELECT '${member.id}'::UUID $$`);
+      const first = await markSelf(db);
+      const savedClass = (await db.query('SELECT class_number FROM public.attendance WHERE id = $1', [first.attendance_id])).rows[0].class_number;
+      assert.equal(savedClass, member.member_number === '201' ? '14' : '20');
+    }
   } finally {
     await db.close();
   }

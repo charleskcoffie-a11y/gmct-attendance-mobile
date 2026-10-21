@@ -241,7 +241,9 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({ onBack }) => {
       username: username,
       fullName: member.name || "",
       classNumber: member.class_number || "",
-      email: member.email || `${(member.class_number || username).toString().trim().toLowerCase()}@gmct.member`,
+      email: member.member_number
+        ? `${member.member_number.toString().trim().toLowerCase()}@gmct.member`
+        : member.email || `${username}@gmct.member`,
       phone: member.phone || "",
       password: tempPassword,  // Auto-generated, not visible to member
       accessCode: "",

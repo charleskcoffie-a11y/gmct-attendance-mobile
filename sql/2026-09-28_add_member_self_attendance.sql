@@ -131,6 +131,8 @@ DECLARE
   v_date DATE;
   v_distance_meters NUMERIC;
   v_class_number TEXT;
+  v_assignment_count INTEGER;
+  v_ambiguous_assignment BOOLEAN;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'You must be signed in to mark attendance';
@@ -145,29 +147,44 @@ BEGIN
       (to_jsonb(m) ->> 'is_active')::BOOLEAN,
       true
     ) = true
+  ORDER BY (m.id = auth.uid()) DESC, m.id
   LIMIT 1;
 
   IF v_member.id IS NULL THEN
     RAISE EXCEPTION 'Active member profile not found';
   END IF;
 
-  IF (
-    SELECT COUNT(DISTINCT cl.class_number::TEXT)
+  -- Match legacy member-number emails before current emails, which may be shared.
+  WITH leader_candidates AS (
+    SELECT cl.class_number::TEXT AS class_number, (
+      SELECT ARRAY_AGG(m.id)
+      FROM public.members m
+      WHERE CASE
+        WHEN LOWER(TRIM(cl.email)) ~ '^[0-9]+@gmct\.member$'
+          AND EXISTS (
+            SELECT 1 FROM public.members numbered
+            WHERE to_jsonb(numbered) ->> 'member_number' = SPLIT_PART(LOWER(TRIM(cl.email)), '@', 1)
+          )
+        THEN to_jsonb(m) ->> 'member_number' = SPLIT_PART(LOWER(TRIM(cl.email)), '@', 1)
+        ELSE LOWER(TRIM(m.email)) = LOWER(TRIM(cl.email))
+      END
+    ) AS member_ids
     FROM public.class_leaders cl
-    WHERE cl.active = true
-      AND LOWER(TRIM(cl.email)) = LOWER(TRIM(v_member.email))
-      AND cl.class_number::TEXT ~ '^[1-9][0-9]*$'
-  ) > 1 THEN
+    WHERE cl.active = true AND cl.class_number::TEXT ~ '^[1-9][0-9]*$'
+  )
+  SELECT COUNT(DISTINCT class_number) FILTER (WHERE CARDINALITY(member_ids) = 1),
+         MIN(class_number) FILTER (WHERE CARDINALITY(member_ids) = 1),
+         COALESCE(BOOL_OR(CARDINALITY(member_ids) > 1), false)
+  INTO v_assignment_count, v_class_number, v_ambiguous_assignment
+  FROM leader_candidates
+  WHERE v_member.id = ANY(member_ids);
+
+  IF v_ambiguous_assignment THEN
+    RAISE EXCEPTION 'Ambiguous class leader member link. Check Admin Settings.';
+  END IF;
+  IF v_assignment_count > 1 THEN
     RAISE EXCEPTION 'Conflicting class leader assignments. Please contact administration.';
   END IF;
-
-  SELECT cl.class_number::TEXT INTO v_class_number
-  FROM public.class_leaders cl
-  WHERE cl.active = true
-    AND LOWER(TRIM(cl.email)) = LOWER(TRIM(v_member.email))
-    AND cl.class_number::TEXT ~ '^[1-9][0-9]*$'
-  ORDER BY cl.class_number::TEXT
-  LIMIT 1;
   v_class_number := COALESCE(v_class_number, v_member.class_number, '');
 
   SELECT * INTO v_settings
