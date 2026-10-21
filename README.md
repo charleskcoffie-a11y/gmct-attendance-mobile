@@ -226,8 +226,11 @@ PWA scope/start URL. Local and Netlify builds continue to use `/`.
 
 - Open the app while online. It checks for updates on startup, when returning
   to the foreground, when the connection returns, and hourly while visible.
-- Use **Check for updates** at the top of the app. When **Update app** appears,
+- Use **Check for updates** at the top of the app. When **Update now** appears,
   save your attendance and other edits first, then confirm the reload.
+- A prominent **New update available** notice appears at the bottom when an
+  update is ready. Tap **Update now** after saving. This also detects updates
+  that were already downloaded while the app was closed or in the background.
 - If a screen cannot load after a deployment, use **Reload app** on the recovery
   screen. Reloading does not clear your sign-in or saved offline attendance.
   Unsaved edits do not survive a reload.
@@ -235,6 +238,8 @@ PWA scope/start URL. Local and Netlify builds continue to use `/`.
   and reinstalling should not be the first step, as that may remove offline data.
 - Older installations need to receive this update once before these controls
   appear; close all app/browser windows for this site and reopen while online.
+  An older version cannot display a notice that was added in a newer version
+  until it loads the newer app code.
 
 Run `npm run test:updates` for update lifecycle, offline/resume, confirmation,
 and recovery-screen regression tests.

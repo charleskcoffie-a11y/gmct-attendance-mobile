@@ -22,7 +22,11 @@ function createWatcher(update) {
   const window = new EventTarget();
   const document = new EventTarget();
   document.visibilityState = 'visible';
-  const navigator = { onLine: true };
+  const serviceWorker = new EventTarget();
+  serviceWorker.controller = {};
+  const navigator = { onLine: true, serviceWorker };
+  const registration = new EventTarget();
+  registration.update = update;
   let interval;
   let intervalMs;
   window.setInterval = (callback, milliseconds) => {
@@ -37,8 +41,9 @@ function createWatcher(update) {
   const exports = {};
   new Function('exports', 'window', 'document', 'navigator', watcherCode)(exports, window, document, navigator);
   const errors = [];
-  const stop = exports.watchAppUpdates({ update }, error => errors.push(error));
-  return { window, document, navigator, errors, stop, tick: () => interval?.(), intervalMs };
+  let ready = 0;
+  const stop = exports.watchAppUpdates(registration, error => errors.push(error), () => ready++);
+  return { window, document, navigator, registration, errors, stop, ready: () => ready, tick: () => interval?.(), intervalMs };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
@@ -106,6 +111,69 @@ test('deduplicates concurrent checks and surfaces errors without disabling futur
   watcher.stop();
 });
 
+test('detects waiting updates on foreground and installed worker events; cleans up', async () => {
+  const watcher = createWatcher(async () => {});
+  await flush();
+  watcher.registration.waiting = {};
+  watcher.window.dispatchEvent(new Event('pageshow'));
+  await flush();
+  assert.ok(watcher.ready() > 0);
+  watcher.registration.waiting = null;
+  const worker = new EventTarget();
+  watcher.registration.installing = worker;
+  watcher.registration.dispatchEvent(new Event('updatefound'));
+  watcher.registration.waiting = {};
+  const before = watcher.ready();
+  worker.dispatchEvent(new Event('statechange'));
+  assert.equal(watcher.ready(), before + 1);
+  watcher.stop();
+  worker.dispatchEvent(new Event('statechange'));
+  watcher.window.dispatchEvent(new Event('focus'));
+  assert.equal(watcher.ready(), before + 1);
+});
+
+test('first installation does not prompt as an update without an existing controller', async () => {
+  const watcher = createWatcher(async () => {});
+  await flush();
+  watcher.navigator.serviceWorker.controller = null;
+  watcher.registration.waiting = {};
+  watcher.window.dispatchEvent(new Event('focus'));
+  await flush();
+  assert.equal(watcher.ready(), 0);
+  watcher.stop();
+});
+
+test('update activation reloads only after controller changes and reports timeout/errors', async () => {
+  const serviceWorker = new EventTarget();
+  let timeout;
+  let reloads = 0;
+  const window = {
+    setTimeout(callback) { timeout = callback; return 1; },
+    clearTimeout(id) { assert.equal(id, 1); timeout = undefined; },
+    location: { reload() { reloads++; } },
+  };
+  const exports = {};
+  new Function('exports', 'window', 'navigator', watcherCode)(exports, window, { serviceWorker });
+  await assert.rejects(exports.applyAppUpdate({}), /no longer waiting/);
+  const posted = [];
+  const registration = { waiting: { postMessage(message) { posted.push(message); } } };
+  const updating = exports.applyAppUpdate(registration);
+  assert.equal(reloads, 0);
+  assert.deepEqual(posted, [{ type: 'SKIP_WAITING' }]);
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  await updating;
+  assert.equal(reloads, 1);
+  const expired = exports.applyAppUpdate(registration);
+  timeout();
+  await assert.rejects(expired, /did not activate/);
+  serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.equal(reloads, 1);
+  await assert.rejects(exports.applyAppUpdate({
+    waiting: { postMessage() { throw new Error('Message failed'); } },
+  }), /Message failed/);
+  assert.equal(timeout, undefined);
+});
+
 const updatesCode = await compile('../src/components/AppUpdates.tsx');
 function updateControls({ ready = false, online = true, confirm = true, registration, failUpdate = false } = {}) {
   let updated = 0;
@@ -122,16 +190,17 @@ function updateControls({ ready = false, online = true, confirm = true, registra
       useRegisterSW(value) {
         options = value;
         return {
-          needRefresh: [ready],
-          async updateServiceWorker(reload) {
-            assert.equal(reload, true);
-            updated++;
-            if (failUpdate) throw new Error('Update failed');
-          },
+          needRefresh: [ready, value => messages.push(value)],
         };
       },
     };
-    if (name === '../services/appUpdateService') return { watchAppUpdates() { return () => {}; } };
+    if (name === '../services/appUpdateService') return {
+      watchAppUpdates() { return () => {}; },
+      async applyAppUpdate() {
+        updated++;
+        if (failUpdate) throw new Error('Update failed');
+      },
+    };
     return require(name);
   };
   new Function('require', 'exports', 'navigator', 'window', updatesCode)(
@@ -139,14 +208,16 @@ function updateControls({ ready = false, online = true, confirm = true, registra
     { confirm(text) { assert.match(text, /Unsaved changes will be lost/); return confirm; } },
   );
   const tree = exports.default();
-  const button = tree.props.children.props.children[1];
+  const button = tree.props.children[0].props.children[1];
   return { tree, button, messages, options: () => options, updated: () => updated };
 }
 
 test('update controls are touch-sized, available without login, and require confirmation', async () => {
-  const controls = updateControls({ ready: true });
+  const controls = updateControls({ ready: true, registration: {} });
   const markup = renderToStaticMarkup(controls.tree);
-  assert.match(markup, /Update app/);
+  assert.match(markup, /New update available/);
+  assert.match(markup, /Update now/);
+  assert.match(markup, /fixed inset-x-3 bottom-4/);
   assert.match(markup, /Save your work/);
   assert.match(markup, /min-h-\[44px\]/);
   controls.button.props.onClick();
@@ -166,7 +237,7 @@ test('manual checking explains offline/unready states and checks a ready registr
   const unready = updateControls();
   unready.button.props.onClick();
   await flush();
-  assert.ok(unready.messages.some(message => String(message).includes('not ready')));
+  assert.ok(unready.messages.some(message => String(message).includes('starting')));
   let checks = 0;
   const controls = updateControls({ registration: { async update() { checks++; } } });
   controls.button.props.onClick();

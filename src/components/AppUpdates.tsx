@@ -1,22 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { watchAppUpdates } from '../services/appUpdateService';
+import { applyAppUpdate, watchAppUpdates } from '../services/appUpdateService';
 
 export default function AppUpdates() {
   const registrationRef = useRef<ServiceWorkerRegistration>();
   const stopWatchingRef = useRef<() => void>();
   const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState('');
   const reportError = (error: unknown) => {
     console.error('App update failed:', error);
-    setMessage('Unable to check for updates. Check your connection and try again.');
+    setMessage(error instanceof Error ? error.message : 'App update failed. Check your connection and try again.');
   };
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+  const { needRefresh: [needRefresh, setNeedRefresh] } = useRegisterSW({
     onRegisteredSW(_url, registration) {
       if (!registration) return;
       registrationRef.current = registration;
       stopWatchingRef.current?.();
-      stopWatchingRef.current = watchAppUpdates(registration, reportError);
+      stopWatchingRef.current = watchAppUpdates(registration, reportError, () => setNeedRefresh(true));
     },
     onRegisterError: reportError,
   });
@@ -28,14 +29,14 @@ export default function AppUpdates() {
       return;
     }
     if (!registrationRef.current) {
-      setMessage('Update service is not ready. Close and reopen the app, then try again.');
+      setMessage('The update service is starting. Wait a moment, then try again.');
       return;
     }
     setChecking(true);
     setMessage('');
     try {
       await registrationRef.current.update();
-      setMessage('Update check complete. If a new version is downloading, Update app will appear when ready.');
+      setMessage('Update check complete. A notice will appear if a new version is ready.');
     } catch (error) {
       reportError(error);
     } finally {
@@ -43,31 +44,45 @@ export default function AppUpdates() {
     }
   };
   const applyUpdate = async () => {
+    if (updating) return;
     if (!window.confirm('Reload to update the app? Save your attendance and any other edits first. Unsaved changes will be lost.')) return;
+    setUpdating(true);
+    setMessage('');
     try {
-      await updateServiceWorker(true);
+      if (!registrationRef.current) throw new Error('Update service is not ready. Please try again.');
+      await applyAppUpdate(registrationRef.current);
     } catch (error) {
       reportError(error);
+    } finally {
+      setUpdating(false);
     }
   };
 
   if (!('serviceWorker' in navigator)) return null;
 
   return (
-    <aside className="sticky top-0 z-50 border-b border-slate-700 bg-slate-950 px-4 py-2 text-slate-100" aria-label="App updates">
+    <aside
+      className={needRefresh
+        ? 'fixed inset-x-3 bottom-4 z-50 mx-auto max-w-lg rounded-xl border border-cyan-300 bg-slate-900 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-slate-100 shadow-2xl'
+        : 'sticky top-0 z-50 border-b border-slate-700 bg-slate-950 px-4 py-2 text-slate-100'}
+      aria-label="App updates"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <p role="status" className="flex-1">
-          {needRefresh ? 'A new version is ready. Save your work before updating.' : message || 'GMCT Connect'}
+          {needRefresh ? (
+            <><strong className="block text-sm text-cyan-200">New update available</strong>Save your work, then tap Update now. No reinstall needed.</>
+          ) : message || 'GMCT Connect'}
         </p>
         <button
           type="button"
-          disabled={checking}
+          disabled={checking || updating}
           onClick={() => { void (needRefresh ? applyUpdate() : checkForUpdate()); }}
           className="min-h-[44px] rounded-lg border border-cyan-300/40 px-3 py-2 font-semibold text-cyan-200 hover:bg-cyan-400/10 disabled:opacity-50"
         >
-          {needRefresh ? 'Update app' : checking ? 'Checking...' : 'Check for updates'}
+          {updating ? 'Updating...' : needRefresh ? 'Update now' : checking ? 'Checking...' : 'Check for updates'}
         </button>
       </div>
+      {needRefresh && message && <p role="alert" className="mt-2 text-sm text-amber-200">{message}</p>}
     </aside>
   );
 }
