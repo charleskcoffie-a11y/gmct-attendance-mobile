@@ -103,6 +103,24 @@ The app uses the same Supabase database as the main GMCT management system:
 - `members` - For class member information
 - `attendance` - For attendance records
 
+### Class Leader Attendance Grouping
+
+An active class leader belongs to the class assigned in Admin Settings for
+attendance, even when their member number or normal class is different. The
+leader's email must match their member profile email. For example, member 938
+assigned to lead Class 1 appears in Class 1, not their normal Class 9. This
+applies to admin views, leader marking/editing, and class report member lists;
+the member number and normal class on the profile are not changed.
+
+Inactive leader assignments do not override the normal class. Multiple active
+assignments to different classes for the same email must be corrected before
+attendance can load.
+
+Deploy the updated app for corrected attendance lists. Also rerun
+[`sql/2026-09-28_add_member_self_attendance.sql`](sql/2026-09-28_add_member_self_attendance.sql)
+so new Sunday self-attendance uses the assigned class. Existing attendance
+history is not moved between classes.
+
 ### Member Self-Attendance
 
 Run [`sql/2026-09-28_add_member_self_attendance.sql`](sql/2026-09-28_add_member_self_attendance.sql)
@@ -138,7 +156,8 @@ eligible to establish protection.
 Run `npm run test:attendance` for self-attendance regression tests. These use an
 isolated in-memory PostgreSQL database, not your live Supabase database, and cover
 leader-first/self-first saves, stale leader submissions, protected statuses,
-summary totals, schema compatibility, and member list status mapping.
+summary totals, schema compatibility, member list status mapping, and assigned
+class leader grouping (including member 938 assigned to Class 1).
 
 ### Tech Stack
 

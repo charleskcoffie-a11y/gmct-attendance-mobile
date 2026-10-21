@@ -16,6 +16,118 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const { applyAttendanceStatuses } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
+const supabaseSource = await readFile(new URL('../src/supabase.ts', import.meta.url), 'utf8');
+const supabaseCode = ts.transpileModule(supabaseSource.replaceAll('import.meta.env', 'testEnv'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
+
+function classMemberService(members, leaders, failTable) {
+  const client = {
+    from(table) {
+      assert.ok(['members', 'class_leaders'].includes(table));
+      const filters = [];
+      const query = {
+        select(columns) {
+          if (table === 'class_leaders') assert.equal(columns, 'email, class_number');
+          return query;
+        },
+        eq(column, value) {
+          filters.push(row => row[column] === value);
+          return query;
+        },
+        ilike(column, pattern) {
+          const literal = pattern.replace(/\\([\\%_])/g, '$1');
+          filters.push(row => row[column]?.toLowerCase() === literal.toLowerCase());
+          return query;
+        },
+        order() { return query; },
+        then(resolve, reject) {
+          const data = (table === 'members' ? members : leaders).filter(row => filters.every(filter => filter(row)));
+          return Promise.resolve({
+            data: table === failTable ? null : data,
+            error: table === failTable ? new Error(`Cannot read ${table}`) : null,
+          }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  };
+  const exports = {};
+  new Function('require', 'exports', 'testEnv', supabaseCode)(
+    name => {
+      assert.equal(name, '@supabase/supabase-js');
+      return { createClient: () => client };
+    },
+    exports,
+    { VITE_SUPABASE_URL: 'https://example.test', VITE_SUPABASE_ANON_KEY: 'test-key' },
+  );
+  return exports.getClassMembers;
+}
+
+const rosterMembers = [
+  { id: '938', member_number: '938', name: 'James Baah', class_number: '9', email: '938@gmct.member', active: true, phone: '123' },
+  { id: '611', member_number: '611', name: 'Class 2 Leader', class_number: '6', email: '611@gmct.member', active: true },
+  { id: '101', name: 'Regular member', class_number: '1', email: '101@gmct.member', active: true },
+  { id: 'inactive', name: 'Inactive member', class_number: '9', email: 'inactive@gmct.member', active: false },
+];
+const rosterLeaders = [
+  { email: ' 938@GMCT.MEMBER ', class_number: 1, active: true },
+  { email: '611@gmct.member', class_number: '2', active: true },
+  { email: 'inactive@gmct.member', class_number: 1, active: true },
+];
+
+test('member 938 appears once in assigned Class 1 for admins, leaders, and edit/report callers', async () => {
+  const getClassMembers = classMemberService(rosterMembers, rosterLeaders);
+  for (const includeEmail of [undefined, '101@gmct.member', '938@gmct.member']) {
+    const members = await getClassMembers(1, includeEmail);
+    assert.deepEqual(members.map(m => m.id), ['938', '101']);
+    assert.equal(members[0].assignedClass, 1);
+    assert.equal(members[0].class_number, '9');
+    assert.equal(members[0].member_number, '938');
+    assert.equal(members[0].phoneNumber, '123');
+  }
+  assert.deepEqual(await getClassMembers(9), []);
+  assert.deepEqual(await getClassMembers(9, '938@gmct.member'), []);
+  assert.deepEqual((await getClassMembers(2)).map(m => m.id), ['611']);
+  assert.deepEqual(await getClassMembers(6), []);
+});
+
+test('inactive assignments restore the normal class and admin mappings do not move members', async () => {
+  const getClassMembers = classMemberService(rosterMembers, [
+    { email: '938@gmct.member', class_number: 1, active: false },
+    { email: '611@gmct.member', class_number: -1, active: true },
+  ]);
+  assert.deepEqual((await getClassMembers(9)).map(m => m.id), ['938']);
+  assert.deepEqual((await getClassMembers(6)).map(m => m.id), ['611']);
+  assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['101']);
+});
+
+test('same-class leaders are not duplicated and legacy include-email remains supported', async () => {
+  const getClassMembers = classMemberService(rosterMembers, [
+    { email: '101@gmct.member', class_number: 1, active: true },
+  ]);
+  assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['101']);
+  assert.deepEqual((await getClassMembers(1, '938@gmct.member')).map(m => m.id), ['938', '101']);
+});
+
+test('leader member email queries escape wildcard characters', async () => {
+  const getClassMembers = classMemberService([
+    { id: 'leader', name: 'Leader', class_number: '9', email: 'class_leader@gmct.member', active: true },
+  ], [{ email: 'class_leader@gmct.member', class_number: 1, active: true }]);
+  assert.deepEqual((await getClassMembers(1)).map(m => m.id), ['leader']);
+});
+
+test('roster query failures and conflicting assignments reject instead of returning incomplete attendance', async () => {
+  for (const table of ['members', 'class_leaders']) {
+    const getClassMembers = classMemberService(rosterMembers, rosterLeaders, table);
+    await assert.rejects(getClassMembers(1), new RegExp(`Cannot read ${table}`));
+  }
+  const getClassMembers = classMemberService(rosterMembers, [
+    ...rosterLeaders, { email: '938@gmct.member', class_number: 2, active: true },
+  ]);
+  await assert.rejects(getClassMembers(1), /Conflicting class leader assignments/);
+});
+
 async function createDatabase(statusColumns = 'active BOOLEAN DEFAULT true') {
   const db = new PGlite();
   await db.exec(`
@@ -30,6 +142,7 @@ async function createDatabase(statusColumns = 'active BOOLEAN DEFAULT true') {
       class_number TEXT, ${statusColumns}
     );
     CREATE TABLE public.app_settings (id TEXT PRIMARY KEY);
+    CREATE TABLE public.class_leaders (email TEXT, class_number INTEGER, active BOOLEAN DEFAULT true);
     INSERT INTO public.app_settings VALUES ('app_settings');
     CREATE TABLE public.attendance (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(), class_number TEXT,
@@ -188,6 +301,51 @@ test('multiple members self-mark into the same Sunday class record', async () =>
     const second = await markSelf(db);
     assert.equal(first.attendance_id, second.attendance_id);
     assert.deepEqual(await totals(db, first.attendance_id), { present: 2, absent: 0, sick: 0, travel: 0 });
+  } finally {
+    await db.close();
+  }
+});
+
+test('self-attendance uses the active leader assignment without changing the member profile', async () => {
+  const db = await createDatabase();
+  try {
+    await db.exec(`
+      UPDATE public.members SET class_number = '9' WHERE email = 'self@example.test';
+      INSERT INTO public.class_leaders(email, class_number) VALUES (' SELF@example.test ', 1);
+    `);
+    const first = await markSelf(db);
+    assert.equal((await db.query('SELECT class_number FROM public.attendance WHERE id = $1', [first.attendance_id])).rows[0].class_number, '1');
+    assert.equal((await db.query('SELECT class_number FROM public.member_attendance')).rows[0].class_number, '1');
+    assert.equal((await db.query("SELECT class_number FROM public.members WHERE email = 'self@example.test'")).rows[0].class_number, '9');
+    await db.exec("SELECT set_config('test.email', 'leader@example.test', false)");
+    assert.equal((await markSelf(db)).attendance_id, first.attendance_id);
+  } finally {
+    await db.close();
+  }
+});
+
+test('inactive and admin assignments do not override the normal self-attendance class', async () => {
+  const db = await createDatabase();
+  try {
+    await db.exec(`
+      INSERT INTO public.class_leaders(email, class_number, active)
+      VALUES ('self@example.test', 2, false), ('self@example.test', -1, true);
+    `);
+    const first = await markSelf(db);
+    assert.equal((await db.query('SELECT class_number FROM public.attendance WHERE id = $1', [first.attendance_id])).rows[0].class_number, '1');
+  } finally {
+    await db.close();
+  }
+});
+
+test('self-attendance rejects conflicting leader assignments', async () => {
+  const db = await createDatabase();
+  try {
+    await db.exec(`
+      INSERT INTO public.class_leaders(email, class_number)
+      VALUES ('self@example.test', 1), ('self@example.test', 2);
+    `);
+    await assert.rejects(markSelf(db), /Conflicting class leader assignments/);
   } finally {
     await db.close();
   }

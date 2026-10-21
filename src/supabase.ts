@@ -72,69 +72,80 @@ export async function validateClassAccessCode(accessCode: string): Promise<numbe
   return null;
 }
 
-// Get members for a specific class
-// Optionally include one extra active member (by email), useful when a class leader
-// teaches a class different from their personal class_number and should mark self.
-export async function getClassMembers(classNumber: number, includeMemberEmail?: string) {
+// Active leader assignments override a member's normal class for every viewer.
+export async function getClassMembers(classNumber: number, includeMemberEmail?: string): Promise<Member[]> {
   const classNumberText = classNumber.toString();
-  const normalizedIncludeEmail = includeMemberEmail?.trim().toLowerCase();
-  const { data, error } = await supabase
-    .from('members')
-    .select('*')
-    .eq('class_number', classNumberText)
-    .eq('active', true)
-    .order('name', { ascending: true });
+  const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() || '';
+  const [membersResult, leadersResult] = await Promise.all([
+    supabase
+      .from('members')
+      .select('*')
+      .eq('class_number', classNumberText)
+      .eq('active', true)
+      .order('name', { ascending: true }),
+    supabase
+      .from('class_leaders')
+      .select('email, class_number')
+      .eq('active', true)
+  ]);
 
-  if (error) {
-    console.error('Error fetching class members:', error);
-    return [];
+  if (membersResult.error || leadersResult.error) {
+    const error = membersResult.error || leadersResult.error;
+    console.error('Error fetching class members or leader assignments:', error);
+    throw error;
   }
 
-  const baseMembers = (data || []).map((m: any) => ({
-    ...m,
-    id: String(m.id),
-    assignedClass: m.class_number ? parseInt(m.class_number, 10) : undefined,
-    phoneNumber: m.phone ?? m.phoneNumber
+  const assignments = new Map<string, number>();
+  const leaders: Array<{ email: string | null; class_number: string | number | null }> = leadersResult.data || [];
+  for (const leader of leaders) {
+    const email = normalizeEmail(leader.email);
+    const assignedClass = Number(leader.class_number);
+    if (!email || !Number.isInteger(assignedClass) || assignedClass <= 0) continue;
+    if (assignments.has(email) && assignments.get(email) !== assignedClass) {
+      throw new Error(`Conflicting class leader assignments for ${email}`);
+    }
+    assignments.set(email, assignedClass);
+  }
+
+  const baseMembers: Member[] = membersResult.data || [];
+  const extraEmails = new Set(
+    [...assignments].filter(([, assignedClass]) => assignedClass === classNumber).map(([email]) => email)
+  );
+  const normalizedIncludeEmail = normalizeEmail(includeMemberEmail);
+  if (normalizedIncludeEmail && !assignments.has(normalizedIncludeEmail)) {
+    extraEmails.add(normalizedIncludeEmail);
+  }
+  for (const member of baseMembers) {
+    extraEmails.delete(normalizeEmail(member.email));
+  }
+
+  const extraMembers = await Promise.all([...extraEmails].map(async email => {
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('active', true)
+      .ilike('email', email.replace(/[\\%_]/g, '\\$&'));
+
+    if (error) {
+      console.error('Error fetching assigned class leader member:', error);
+      throw error;
+    }
+    return (data || []) as Member[];
   }));
 
-  if (!normalizedIncludeEmail) {
-    return baseMembers;
+  const membersById = new Map<string, Member>();
+  for (const member of [...baseMembers, ...extraMembers.flat()]) {
+    const assignedClass = assignments.get(normalizeEmail(member.email));
+    if (assignedClass !== undefined && assignedClass !== classNumber) continue;
+    const id = String(member.id);
+    membersById.set(id, {
+      ...member,
+      id,
+      assignedClass: assignedClass ?? (member.class_number ? Number(member.class_number) : undefined),
+      phoneNumber: member.phone ?? member.phoneNumber
+    });
   }
-
-  const alreadyIncluded = baseMembers.some(
-    (m: any) => (m.email || '').toString().trim().toLowerCase() === normalizedIncludeEmail
-  );
-
-  if (alreadyIncluded) {
-    return baseMembers;
-  }
-
-  const { data: extraMemberData, error: extraMemberError } = await supabase
-    .from('members')
-    .select('*')
-    .eq('active', true)
-    .ilike('email', normalizedIncludeEmail)
-    .limit(1);
-
-  if (extraMemberError) {
-    console.error('Error fetching included member by email:', extraMemberError);
-    return baseMembers;
-  }
-
-  if (!extraMemberData || extraMemberData.length === 0) {
-    return baseMembers;
-  }
-
-  const includedMember = {
-    ...extraMemberData[0],
-    id: String(extraMemberData[0].id),
-    assignedClass: extraMemberData[0].class_number ? parseInt(extraMemberData[0].class_number, 10) : undefined,
-    phoneNumber: extraMemberData[0].phone ?? extraMemberData[0].phoneNumber
-  };
-
-  return [...baseMembers, includedMember].sort((a: any, b: any) =>
-    (a.name || '').localeCompare(b.name || '')
-  );
+  return [...membersById.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 
 // Save/update member

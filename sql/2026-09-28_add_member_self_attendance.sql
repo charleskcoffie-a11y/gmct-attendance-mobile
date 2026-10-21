@@ -130,6 +130,7 @@ DECLARE
   v_attendance_id UUID;
   v_date DATE;
   v_distance_meters NUMERIC;
+  v_class_number TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'You must be signed in to mark attendance';
@@ -149,6 +150,25 @@ BEGIN
   IF v_member.id IS NULL THEN
     RAISE EXCEPTION 'Active member profile not found';
   END IF;
+
+  IF (
+    SELECT COUNT(DISTINCT cl.class_number::TEXT)
+    FROM public.class_leaders cl
+    WHERE cl.active = true
+      AND LOWER(TRIM(cl.email)) = LOWER(TRIM(v_member.email))
+      AND cl.class_number::TEXT ~ '^[1-9][0-9]*$'
+  ) > 1 THEN
+    RAISE EXCEPTION 'Conflicting class leader assignments. Please contact administration.';
+  END IF;
+
+  SELECT cl.class_number::TEXT INTO v_class_number
+  FROM public.class_leaders cl
+  WHERE cl.active = true
+    AND LOWER(TRIM(cl.email)) = LOWER(TRIM(v_member.email))
+    AND cl.class_number::TEXT ~ '^[1-9][0-9]*$'
+  ORDER BY cl.class_number::TEXT
+  LIMIT 1;
+  v_class_number := COALESCE(v_class_number, v_member.class_number, '');
 
   SELECT * INTO v_settings
   FROM public.app_settings
@@ -186,11 +206,11 @@ BEGIN
   END IF;
 
   -- Serialize self-attendance within a class, including creation of its Sunday record.
-  PERFORM pg_advisory_xact_lock(hashtextextended(COALESCE(v_member.class_number, '') || ':' || v_date::TEXT, 0));
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_class_number || ':' || v_date::TEXT, 0));
 
   -- Use the same parent-before-member lock order as a leader saving the class record.
   PERFORM 1 FROM public.attendance
-  WHERE class_number = COALESCE(v_member.class_number, '')
+  WHERE class_number = v_class_number
     AND service_type = 'sunday'
     AND attendance_date::DATE = v_date
   FOR UPDATE;
@@ -214,7 +234,7 @@ BEGIN
 
   SELECT id INTO v_attendance_id
   FROM public.attendance
-  WHERE class_number = COALESCE(v_member.class_number, '')
+  WHERE class_number = v_class_number
     AND service_type = 'sunday'
     AND attendance_date::DATE = v_date
   ORDER BY attendance_date DESC
@@ -225,7 +245,7 @@ BEGIN
       class_number, attendance_date, service_type, class_leader_name,
       total_members_present, total_members_absent, total_visitors
     ) VALUES (
-      COALESCE(v_member.class_number, ''), v_date, 'sunday', 'Member self-attendance', 0, 0, 0
+      v_class_number, v_date, 'sunday', 'Member self-attendance', 0, 0, 0
     )
     RETURNING id INTO v_attendance_id;
   END IF;
@@ -233,7 +253,7 @@ BEGIN
   INSERT INTO public.member_attendance (
     attendance_id, member_id, member_name, class_number, status, absence_reason, self_marked_at
   ) VALUES (
-    v_attendance_id, v_member.id, v_member.name, COALESCE(v_member.class_number, ''), 'present', NULL, CURRENT_TIMESTAMP
+    v_attendance_id, v_member.id, v_member.name, v_class_number, 'present', NULL, CURRENT_TIMESTAMP
   )
   ON CONFLICT (attendance_id, member_id) DO UPDATE
   SET status = 'present', absence_reason = NULL,
