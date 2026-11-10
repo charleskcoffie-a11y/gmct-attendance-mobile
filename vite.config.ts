@@ -2,63 +2,75 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const base = process.env.GITHUB_ACTIONS === 'true' ? '/gmct-attendance-mobile/' : '/'
-
 // https://vitejs.dev/config/
-export default defineConfig({
-  base,
-  define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || 'development')
-  },
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'prompt',
-      injectRegister: false,
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-512x512.svg'],
-      manifest: {
-        name: 'GMCT Connect',
-        short_name: 'Connect',
-        description: 'GMCT Member Engagement & Contributions App',
-        theme_color: '#4f46e5',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: base,
-        start_url: base,
-        icons: [
-          {
-            src: 'pwa-512x512.svg',
-            sizes: 'any',
-            type: 'image/svg+xml'
-          }
-        ]
-      },
-      workbox: {
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+export default defineConfig(({ mode }) => {
+  const isMobileBuild = mode === 'mobile'
+  const base = isMobileBuild
+    ? '/'
+    : process.env.GITHUB_ACTIONS === 'true'
+      ? '/gmct-attendance-mobile/'
+      : '/'
+
+  return {
+    base,
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version || 'development'),
+      __IS_NATIVE_APP__: JSON.stringify(isMobileBuild),
+    },
+    plugins: [
+      react(),
+      ...(!isMobileBuild
+        ? [
+            VitePWA({
+              registerType: 'prompt',
+              injectRegister: false,
+              includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-512x512.svg'],
+              manifest: {
+                name: 'GMCT Connect',
+                short_name: 'Connect',
+                description: 'GMCT Member Engagement & Contributions App',
+                theme_color: '#4f46e5',
+                background_color: '#ffffff',
+                display: 'standalone',
+                orientation: 'portrait',
+                scope: base,
+                start_url: base,
+                icons: [
+                  {
+                    src: 'pwa-512x512.svg',
+                    sizes: 'any',
+                    type: 'image/svg+xml'
+                  }
+                ]
               },
-              cacheableResponse: {
-                statuses: [0, 200]
+              workbox: {
+                clientsClaim: true,
+                cleanupOutdatedCaches: true,
+                globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+                runtimeCaching: [
+                  {
+                    urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+                    handler: 'NetworkFirst',
+                    options: {
+                      cacheName: 'supabase-cache',
+                      expiration: {
+                        maxEntries: 100,
+                        maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                      },
+                      cacheableResponse: {
+                        statuses: [0, 200]
+                      }
+                    }
+                  }
+                ]
               }
-            }
-          }
-        ]
-      }
-    })
-  ],
-  server: {
-    port: 3001,
-    open: true
+            })
+          ]
+        : []),
+    ],
+    server: {
+      port: 3001,
+      open: true
+    }
   }
 })

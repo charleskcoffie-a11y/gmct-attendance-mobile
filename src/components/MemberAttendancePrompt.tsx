@@ -3,7 +3,9 @@ import { AlertTriangle, CheckCircle2, Loader2, MapPin, X } from 'lucide-react';
 import { markMemberSelfAttendance } from '../supabase';
 import {
   checkAttendanceLocation,
+  getCurrentLocation,
   getAttendanceErrorMessage,
+  isLocationAvailable,
 } from '../services/attendanceLocationService';
 
 interface PendingLocation {
@@ -45,31 +47,26 @@ export default function MemberAttendancePrompt({ memberId }: MemberAttendancePro
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (markedToday || new Date().getDay() !== 0 || !navigator.geolocation) return;
+    if (markedToday || new Date().getDay() !== 0 || !isLocationAvailable()) return;
 
     setChecking(true);
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const location = {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-        };
-
-        try {
-          const locationCheck = await checkAttendanceLocation(location);
-          if (locationCheck.isWithinArea) {
-            setPendingLocation(location);
-          }
-        } catch (locationError) {
-          console.error('Unable to prepare Sunday attendance prompt:', locationError);
-        } finally {
-          setChecking(false);
+    void (async () => {
+      try {
+        const location = await getCurrentLocation({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        });
+        const locationCheck = await checkAttendanceLocation(location);
+        if (locationCheck.isWithinArea) {
+          setPendingLocation(location);
         }
-      },
-      () => setChecking(false),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-    );
+      } catch (locationError) {
+        console.error('Unable to prepare Sunday attendance prompt:', locationError);
+      } finally {
+        setChecking(false);
+      }
+    })();
   }, [markedToday, memberId]);
 
   const confirmAttendance = async () => {

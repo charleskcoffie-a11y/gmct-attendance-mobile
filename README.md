@@ -62,6 +62,38 @@ The production build will be in the `dist` folder.
 3. Tap "Add to Home Screen"
 4. Tap "Add" to confirm
 
+## Native iOS and Android Apps
+
+The web/PWA remains the existing production app. Native projects are maintained
+separately in `ios/` and `android/`; they bundle the built web app and use the
+same Supabase backend. The native build omits the PWA service worker so app
+updates are delivered through the respective app stores.
+
+Build and synchronize the native web assets and plugins:
+
+```bash
+npm run build:mobile
+npx cap sync
+```
+
+Open the platform project:
+
+```bash
+npx cap open android
+npx cap open ios
+```
+
+Android builds require Android Studio and the Android SDK. iOS builds, signing,
+and App Store submission require macOS with Xcode. The native app uses the
+permanent identifier `com.gmct.connect`; do not change it after publishing.
+Location access is used to verify Sunday self-attendance and is requested only
+when that feature is used.
+
+Before submitting either store listing, replace the generated starter icons
+with approved GMCT branding, set the production version/build number, test
+login, offline attendance, synchronization, and location permissions on real
+devices, and complete each store's listing and privacy declarations.
+
 ## Usage
 
 ### For Members and Class Leaders

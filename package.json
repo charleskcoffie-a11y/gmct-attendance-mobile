@@ -6,12 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:mobile": "tsc && vite build --mode mobile --base=/",
+    "cap:sync": "npm run build:mobile && cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
     "preview": "vite preview",
     "test:attendance": "node --test tests/attendance.test.mjs",
     "test:updates": "node --test tests/appUpdates.test.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/ios": "^8.5.3",
     "@supabase/supabase-js": "^2.39.0",
     "dexie": "^3.2.4",
     "dexie-react-hooks": "^1.1.7",
@@ -22,6 +30,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@electric-sql/pglite": "^0.5.10",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",

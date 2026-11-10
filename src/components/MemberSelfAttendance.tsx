@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, MapPin } from 'lucide-
 import { markMemberSelfAttendance } from '../supabase';
 import {
   checkAttendanceLocation,
+  getCurrentLocation,
   getAttendanceErrorMessage,
 } from '../services/attendanceLocationService';
 
@@ -23,43 +24,34 @@ export default function MemberSelfAttendance({ onBack }: MemberSelfAttendancePro
     setError(null);
     setPendingLocation(null);
 
-    if (!navigator.geolocation) {
-      setLoading(false);
-      setError('Location services are not available on this device.');
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const location = {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-        };
-
-        try {
-          const locationCheck = await checkAttendanceLocation(location);
-          if (!locationCheck.isWithinArea) {
-            setError(locationCheck.message || 'You are outside the church attendance area.');
-            return;
-          }
-          setPendingLocation(location);
-        } catch (locationError) {
-          setError(getAttendanceErrorMessage(locationError, 'Attendance location could not be checked.'));
-        } finally {
-          setLoading(false);
+    void (async () => {
+      try {
+        const location = await getCurrentLocation({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        });
+        const locationCheck = await checkAttendanceLocation(location);
+        if (!locationCheck.isWithinArea) {
+          setError(locationCheck.message || 'You are outside the church attendance area.');
+          return;
         }
-      },
-      (locationError) => {
-        setLoading(false);
+        setPendingLocation(location);
+      } catch (locationError) {
+        const permissionDenied =
+          typeof locationError === 'object' &&
+          locationError !== null &&
+          'code' in locationError &&
+          locationError.code === 1;
         setError(
-          locationError.code === locationError.PERMISSION_DENIED
+          permissionDenied
             ? 'Location permission is required to mark attendance.'
-            : 'We could not determine your location. Please try again near the church.'
+            : getAttendanceErrorMessage(locationError, 'We could not determine your location. Please try again near the church.')
         );
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-    );
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   const confirmAttendance = async () => {

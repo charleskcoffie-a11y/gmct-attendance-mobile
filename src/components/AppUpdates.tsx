@@ -13,7 +13,7 @@ export default function AppUpdates() {
     setMessage(error instanceof Error ? error.message : 'App update failed. Check your connection and try again.');
   };
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    if (__IS_NATIVE_APP__ || !('serviceWorker' in navigator)) return;
     let cancelled = false;
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
       scope: import.meta.env.BASE_URL,
@@ -66,7 +66,7 @@ export default function AppUpdates() {
     }
   };
 
-  if (!('serviceWorker' in navigator)) return null;
+  if (__IS_NATIVE_APP__ || !('serviceWorker' in navigator)) return null;
 
   return (
     <aside

@@ -1,9 +1,17 @@
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '../supabase';
 
 interface AttendanceLocation {
   latitude: number;
   longitude: number;
   accuracy: number;
+}
+
+interface CurrentLocationOptions {
+  enableHighAccuracy?: boolean;
+  timeout?: number;
+  maximumAge?: number;
 }
 
 interface AttendanceLocationCheck {
@@ -20,6 +28,37 @@ const toConfiguredNumber = (value: unknown) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
+
+export function isLocationAvailable() {
+  return Capacitor.isNativePlatform() || Boolean(navigator.geolocation);
+}
+
+export async function getCurrentLocation(options: CurrentLocationOptions): Promise<AttendanceLocation> {
+  if (Capacitor.isNativePlatform()) {
+    const { coords } = await Geolocation.getCurrentPosition(options);
+    return {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+    };
+  }
+
+  if (!navigator.geolocation) {
+    throw new Error('Location services are not available on this device.');
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+      }),
+      reject,
+      options
+    );
+  });
+}
 
 export function getAttendanceErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;

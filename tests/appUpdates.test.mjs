@@ -201,7 +201,14 @@ test('update activation reloads only after controller changes and reports timeou
 });
 
 const updatesCode = await compile('../src/components/AppUpdates.tsx');
-function updateControls({ ready = false, online = true, confirm = true, registration, failUpdate = false } = {}) {
+function updateControls({
+  ready = false,
+  online = true,
+  confirm = true,
+  registration,
+  failUpdate = false,
+  nativeApp = false,
+} = {}) {
   let updated = 0;
   const messages = [];
   let options;
@@ -226,7 +233,7 @@ function updateControls({ ready = false, online = true, confirm = true, registra
     };
     return require(name);
   };
-  new Function('require', 'exports', 'navigator', 'window', '__APP_VERSION__', updatesCode)(
+  new Function('require', 'exports', 'navigator', 'window', '__APP_VERSION__', '__IS_NATIVE_APP__', updatesCode)(
     fakeRequire, exports, {
       serviceWorker: {
         register(url, config) {
@@ -238,9 +245,10 @@ function updateControls({ ready = false, online = true, confirm = true, registra
     },
     { confirm(text) { assert.match(text, /Unsaved changes will be lost/); return confirm; } },
     '1.0.1',
+    nativeApp,
   );
   const tree = exports.default();
-  const button = tree.props.children[0].props.children[1];
+  const button = tree?.props.children[0].props.children[1];
   return {
     tree, button, messages, options: () => options, updated: () => updated,
     registerCalls, watches: () => watches, stops: () => stops,
@@ -299,6 +307,13 @@ test('manual checking explains offline/unready states and checks a ready registr
   assert.equal(controls.updated(), 0);
 });
 
+test('native builds do not register the PWA service worker or show web update controls', () => {
+  const controls = updateControls({ nativeApp: true });
+  assert.equal(controls.tree, null);
+  assert.equal(controls.options()(), undefined);
+  assert.deepEqual(controls.registerCalls, []);
+});
+
 test('recovery screen explains saved versus unsaved data and offers reload', async () => {
   const code = await compile('../src/components/AppRecovery.tsx');
   const exports = {};
@@ -318,15 +333,28 @@ test('recovery screen explains saved versus unsaved data and offers reload', asy
 test('PWA waits for user approval and cleans obsolete precaches', async () => {
   const code = await compile('../vite.config.ts');
   const exports = {};
-  let options;
-  new Function('require', 'exports', code)(name => {
+  let pwaOptions;
+  new Function('require', 'exports', 'process', code)(name => {
     if (name === 'vite') return { defineConfig: value => value };
-    if (name === '@vitejs/plugin-react') return () => {};
-    if (name === 'vite-plugin-pwa') return { VitePWA(value) { options = value; } };
+    if (name === '@vitejs/plugin-react') return () => ({ name: 'react' });
+    if (name === 'vite-plugin-pwa') return {
+      VitePWA(value) {
+        pwaOptions = value;
+        return { name: 'pwa' };
+      },
+    };
     throw new Error(`Unexpected import ${name}`);
-  }, exports);
-  assert.equal(options.registerType, 'prompt');
-  assert.equal(options.injectRegister, false);
-  assert.equal(options.workbox.clientsClaim, true);
-  assert.equal(options.workbox.cleanupOutdatedCaches, true);
+  }, exports, { env: {} });
+  const config = exports.default;
+  const webConfig = config({ mode: 'production' });
+  assert.equal(pwaOptions.registerType, 'prompt');
+  assert.equal(pwaOptions.injectRegister, false);
+  assert.equal(pwaOptions.workbox.clientsClaim, true);
+  assert.equal(pwaOptions.workbox.cleanupOutdatedCaches, true);
+  assert.ok(webConfig.plugins.some(plugin => plugin.name === 'pwa'));
+
+  const mobileConfig = config({ mode: 'mobile' });
+  assert.equal(mobileConfig.base, '/');
+  assert.equal(mobileConfig.define.__IS_NATIVE_APP__, 'true');
+  assert.ok(!mobileConfig.plugins.some(plugin => plugin.name === 'pwa'));
 });

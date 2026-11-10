@@ -23,6 +23,7 @@ export default function InstallApp() {
   const [installed, setInstalled] = useState(false);
 
   useEffect(() => {
+    if (__IS_NATIVE_APP__) return;
     setIos(isIosDevice());
     setInstalled(isStandalone());
 
@@ -46,7 +47,7 @@ export default function InstallApp() {
     };
   }, []);
 
-  if (installed) return null;
+  if (__IS_NATIVE_APP__ || installed) return null;
 
   const handleInstall = async () => {
     if (!installEvent) {
