@@ -29,6 +29,8 @@ function createWatcher(update) {
   registration.update = update;
   let interval;
   let intervalMs;
+  const timeouts = new Map();
+  let nextTimeout = 1;
   window.setInterval = (callback, milliseconds) => {
     interval = callback;
     intervalMs = milliseconds;
@@ -38,21 +40,36 @@ function createWatcher(update) {
     assert.equal(id, 1);
     interval = undefined;
   };
+  window.setTimeout = (callback, milliseconds) => {
+    const id = nextTimeout++;
+    timeouts.set(id, { callback, milliseconds });
+    return id;
+  };
+  window.clearTimeout = id => { timeouts.delete(id); };
   const exports = {};
   new Function('exports', 'window', 'document', 'navigator', watcherCode)(exports, window, document, navigator);
   const errors = [];
   let ready = 0;
   const stop = exports.watchAppUpdates(registration, error => errors.push(error), () => ready++);
-  return { window, document, navigator, registration, errors, stop, ready: () => ready, tick: () => interval?.(), intervalMs };
+  return {
+    window, document, navigator, registration, errors, stop, ready: () => ready,
+    tick: () => interval?.(), intervalMs, timeouts,
+    runTimeouts: () => {
+      for (const [id, timeout] of timeouts) {
+        timeouts.delete(id);
+        timeout.callback();
+      }
+    },
+  };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-test('checks on startup, foreground, reconnect and hourly; cleanup removes all listeners', async () => {
+test('checks on startup, foreground, reconnect and every five minutes; cleanup removes all listeners', async () => {
   let checks = 0;
   const watcher = createWatcher(async () => { checks++; });
   await flush();
   assert.equal(checks, 1);
-  assert.equal(watcher.intervalMs, 60 * 60 * 1000);
+  assert.equal(watcher.intervalMs, 5 * 60 * 1000);
   watcher.document.dispatchEvent(new Event('visibilitychange'));
   await flush();
   watcher.window.dispatchEvent(new Event('online'));
@@ -66,6 +83,38 @@ test('checks on startup, foreground, reconnect and hourly; cleanup removes all l
   watcher.tick();
   await flush();
   assert.equal(checks, 4);
+});
+
+test('automatically detects a worker exposed as waiting after its installed event', async () => {
+  const watcher = createWatcher(async () => {});
+  await flush();
+  const worker = new EventTarget();
+  worker.state = 'installing';
+  watcher.registration.installing = worker;
+  watcher.registration.dispatchEvent(new Event('updatefound'));
+  worker.state = 'installed';
+  worker.dispatchEvent(new Event('statechange'));
+  assert.equal(watcher.ready(), 0);
+  assert.equal(watcher.timeouts.size, 1);
+  watcher.registration.waiting = worker;
+  watcher.runTimeouts();
+  assert.equal(watcher.ready(), 1);
+  watcher.stop();
+});
+
+test('cleans up delayed waiting checks when the watcher stops', async () => {
+  const watcher = createWatcher(async () => {});
+  await flush();
+  const worker = new EventTarget();
+  worker.state = 'installed';
+  watcher.registration.installing = worker;
+  watcher.registration.dispatchEvent(new Event('updatefound'));
+  assert.equal(watcher.timeouts.size, 1);
+  watcher.stop();
+  assert.equal(watcher.timeouts.size, 0);
+  watcher.registration.waiting = worker;
+  watcher.runTimeouts();
+  assert.equal(watcher.ready(), 0);
 });
 
 test('does not check while hidden or offline; retries when visible and connected', async () => {

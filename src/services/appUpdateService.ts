@@ -5,7 +5,8 @@ export function watchAppUpdates(
 ): () => void {
   let checking = false;
   const originalController = navigator.serviceWorker.controller;
-  const workers = new Set<ServiceWorker>();
+  const workers = new Map<ServiceWorker, () => void>();
+  const waitingChecks = new Set<number>();
   const detectWaiting = () => {
     if (registration.waiting && navigator.serviceWorker.controller) onReady();
     if (originalController && registration.active && registration.active !== originalController) onReady();
@@ -13,8 +14,20 @@ export function watchAppUpdates(
   const watchInstalling = () => {
     const worker = registration.installing;
     if (!worker || workers.has(worker)) return;
-    workers.add(worker);
-    worker.addEventListener('statechange', detectWaiting);
+    const onStateChange = () => {
+      detectWaiting();
+      if (worker.state === 'installed') {
+        // The browser may not expose the waiting worker until after this event.
+        const timeout = window.setTimeout(() => {
+          waitingChecks.delete(timeout);
+          detectWaiting();
+        }, 200);
+        waitingChecks.add(timeout);
+      }
+    };
+    workers.set(worker, onStateChange);
+    worker.addEventListener('statechange', onStateChange);
+    onStateChange();
   };
   const check = async () => {
     detectWaiting();
@@ -38,7 +51,7 @@ export function watchAppUpdates(
   registration.addEventListener('updatefound', watchInstalling);
   navigator.serviceWorker.addEventListener('controllerchange', detectWaiting);
   watchInstalling();
-  const interval = window.setInterval(onVisible, 60 * 60 * 1000);
+  const interval = window.setInterval(onVisible, 5 * 60 * 1000);
   void check();
   return () => {
     window.removeEventListener('online', onVisible);
@@ -47,7 +60,8 @@ export function watchAppUpdates(
     document.removeEventListener('visibilitychange', onVisible);
     registration.removeEventListener('updatefound', watchInstalling);
     navigator.serviceWorker.removeEventListener('controllerchange', detectWaiting);
-    for (const worker of workers) worker.removeEventListener('statechange', detectWaiting);
+    for (const [worker, onStateChange] of workers) worker.removeEventListener('statechange', onStateChange);
+    for (const timeout of waitingChecks) window.clearTimeout(timeout);
     window.clearInterval(interval);
   };
 }

@@ -225,8 +225,8 @@ PWA scope/start URL. Local and Netlify builds continue to use `/`.
 ### Installed app is outdated or a screen stops loading
 
 - Open the app while online. It checks for updates on startup, when returning
-  to the foreground, when the connection returns, and hourly while visible.
-- Use **Check for updates** at the top of the app. When **Update now** appears,
+  to the foreground, when the connection returns, and every five minutes while visible.
+- **Check for updates** at the top of the app is optional. When **Update now** appears,
   save your attendance and other edits first, then confirm the reload.
 - A prominent **New update available** notice appears at the bottom when an
   update is ready. Tap **Update now** after saving. This also detects updates
