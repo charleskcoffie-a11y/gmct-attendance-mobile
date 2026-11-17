@@ -64,6 +64,10 @@ const formatCategoryLabel = (category: string): string => {
     return 'Kofi & Ama';
   }
 
+  if (category.trim().toLowerCase() === 'harvest') {
+    return 'Main Harvest';
+  }
+
   return category
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
