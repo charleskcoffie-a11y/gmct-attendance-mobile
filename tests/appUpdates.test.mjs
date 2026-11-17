@@ -250,21 +250,28 @@ test('update activation reloads only after controller changes and reports timeou
 });
 
 const updatesCode = await compile('../src/components/AppUpdates.tsx');
-function updateControls({ ready = false, online = true, confirm = true, registration, failUpdate = false } = {}) {
+function updateControls({ ready = false, online = true, confirming = false, registration, failUpdate = false } = {}) {
   let updated = 0;
   const messages = [];
-  let options;
+  const effects = [];
   let stateIndex = 0;
   let refIndex = 0;
+  let dialogsOpened = 0;
   const registerCalls = [];
   let watches = 0;
   let stops = 0;
   const exports = {};
   const fakeRequire = name => {
     if (name === 'react') return {
-      useRef: () => ({ current: refIndex++ === 0 ? registration : undefined }),
-      useState: initial => [stateIndex++ === 3 ? ready : initial, value => messages.push(value)],
-      useEffect(effect) { options = effect; },
+      useRef: () => {
+        const index = refIndex++;
+        return { current: index === 0 ? registration : index === 2 ? { showModal() { dialogsOpened++; } } : undefined };
+      },
+      useState: initial => {
+        const index = stateIndex++;
+        return [index === 3 ? ready : index === 4 ? confirming : initial, value => messages.push(value)];
+      },
+      useEffect(effect) { effects.push(effect); },
     };
     if (name === '../services/appUpdateService') return {
       watchAppUpdates() { watches++; return () => { stops++; }; },
@@ -285,13 +292,21 @@ function updateControls({ ready = false, online = true, confirm = true, registra
       },
       onLine: online,
     },
-    { confirm(text) { assert.match(text, /Unsaved changes will be lost/); return confirm; } },
+    {},
     '1.0.1',
   );
   const tree = exports.default();
-  const button = tree.props.children[0].props.children[1];
+  const findElements = (element, type) => {
+    if (!React.isValidElement(element)) return [];
+    return [
+      ...(element.type === type ? [element] : []),
+      ...React.Children.toArray(element.props.children).flatMap(child => findElements(child, type)),
+    ];
+  };
+  const buttons = findElements(tree, 'button');
   return {
-    tree, button, messages, options: () => options, updated: () => updated,
+    tree, button: buttons[0], buttons, messages, options: () => effects[0], effects,
+    dialogsOpened: () => dialogsOpened, updated: () => updated,
     registerCalls, watches: () => watches, stops: () => stops,
   };
 }
@@ -318,17 +333,29 @@ test('update controls are touch-sized, available without login, and require conf
   assert.match(markup, /New update available/);
   assert.match(markup, /Update now/);
   assert.match(markup, /fixed inset-x-3 bottom-4/);
-  assert.match(markup, /Save your work/);
+  assert.match(markup, /Save your attendance and any other edits first/);
+  assert.match(markup, /app will reload/);
   assert.match(markup, /min-h-\[44px\]/);
   assert.match(markup, /Installed app version/);
   assert.match(markup, /Version 1\.0\.1/);
   controls.button.props.onClick();
   await flush();
-  assert.equal(controls.updated(), 1);
-  const cancelled = updateControls({ ready: true, confirm: false });
-  cancelled.button.props.onClick();
+  assert.equal(controls.updated(), 0);
+  assert.ok(controls.messages.includes(true));
+
+  const confirmation = updateControls({ ready: true, confirming: true, registration: {} });
+  const dialogMarkup = renderToStaticMarkup(confirmation.tree);
+  assert.match(dialogMarkup, /<dialog/);
+  assert.match(dialogMarkup, /Ready to update\?/);
+  assert.match(dialogMarkup, /unsaved changes will be lost/i);
+  confirmation.effects[1]();
+  assert.equal(confirmation.dialogsOpened(), 1);
+  confirmation.buttons[1].props.onClick();
+  assert.ok(confirmation.messages.includes(false));
+  assert.equal(confirmation.updated(), 0);
+  confirmation.buttons[2].props.onClick();
   await flush();
-  assert.equal(cancelled.updated(), 0);
+  assert.equal(confirmation.updated(), 1);
 });
 
 test('manual checking explains offline/unready states and checks a ready registration', async () => {
